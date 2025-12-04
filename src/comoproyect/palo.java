@@ -3,6 +3,10 @@ package comoproyect;
 import java.awt.EventQueue;
 
 import javax.swing.JFrame;
+import javax.swing.JLabel;
+import java.awt.BorderLayout;
+import java.awt.Font;
+import javax.swing.SwingConstants;
 
 public class palo {
 
@@ -38,6 +42,13 @@ public class palo {
 		frame = new JFrame();
 		frame.setBounds(100, 100, 450, 300);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		frame.getContentPane().setLayout(null);
+		
+		JLabel lblNewLabel = new JLabel("hola");
+		lblNewLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		lblNewLabel.setFont(new Font("Arial", Font.BOLD, 70));
+		lblNewLabel.setBounds(40, 37, 337, 187);
+		frame.getContentPane().add(lblNewLabel);
 	}
 
 }

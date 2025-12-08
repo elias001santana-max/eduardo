@@ -9,15 +9,19 @@ public class Bar {
     private final JProgressBar progressBar = new JProgressBar();
     private Thread hilo;
 
-    // Colores de tu estilo
-    private final Color PRIMARY_COLOR = new Color(230, 81, 0); // Naranja
-    private final Color DARK_BG = new Color(33, 33, 33);       // Gris oscuro
+    private String nombreUsuario;
+
+    // 🎨 COLORES DEL MISMO DISEÑO DEL LOGIN
+    private final Color BLUE_DARK = new Color(30, 41, 59);      // 🔵 Fondo azul oscuro
+    private final Color PRIMARY_COLOR = new Color(59, 130, 246); // 🔵 Azul vibrante
+    private final Color ACCENT_COLOR = new Color(251, 146, 60);  // 🟠 Naranja suave
+    private final Color CARD_COLOR = Color.WHITE;
 
     public static void main(String[] args) {
         EventQueue.invokeLater(() -> {
             try {
                 Bar window = new Bar();
-                window.startCarga(); // Iniciar barra de carga
+                window.startCarga();
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -26,6 +30,10 @@ public class Bar {
 
     public Bar() {
         initialize();
+    }
+
+    public void setNombreUsuario(String nombreUsuario) {
+        this.nombreUsuario = nombreUsuario;
     }
 
     private void initialize() {
@@ -37,27 +45,27 @@ public class Bar {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.getContentPane().setLayout(null);
 
-        // Botón cerrar
+        // ❌ Botón cerrar estilo Dashboard
         JButton btnCerrar = new JButton("X");
         btnCerrar.setBounds(460, 5, 35, 25);
-        btnCerrar.setFont(new Font("Arial", Font.BOLD, 14));
-        btnCerrar.setBackground(new Color(200, 0, 0));
+        btnCerrar.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        btnCerrar.setBackground(new Color(239, 68, 68)); // rojo
         btnCerrar.setForeground(Color.WHITE);
         btnCerrar.setFocusPainted(false);
         btnCerrar.setBorder(null);
         btnCerrar.addActionListener(e -> frame.dispose());
         frame.add(btnCerrar);
 
-        // Fondo oscuro
+        // 🔵 Panel de fondo azul oscuro
         JPanel panelFondo = new JPanel();
-        panelFondo.setBackground(DARK_BG);
+        panelFondo.setBackground(BLUE_DARK);
         panelFondo.setBounds(0, 0, 500, 260);
         panelFondo.setLayout(null);
         frame.add(panelFondo);
 
         // Tarjeta blanca
         JPanel tarjeta = new JPanel();
-        tarjeta.setBackground(Color.WHITE);
+        tarjeta.setBackground(CARD_COLOR);
         tarjeta.setBounds(60, 40, 380, 170);
         tarjeta.setLayout(null);
         tarjeta.setBorder(new RoundBorder(30));
@@ -65,6 +73,7 @@ public class Bar {
 
         JLabel lblCargando = new JLabel("Cargando...");
         lblCargando.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        lblCargando.setForeground(new Color(30, 41, 59));
         lblCargando.setHorizontalAlignment(SwingConstants.CENTER);
         lblCargando.setBounds(10, 10, 360, 40);
         tarjeta.add(lblCargando);
@@ -78,7 +87,7 @@ public class Bar {
         tarjeta.add(progressBar);
     }
 
-    // Método para iniciar la barra de carga
+    // Barra de carga
     public void startCarga() {
 
         if (hilo != null && hilo.isAlive()) return;
@@ -100,8 +109,9 @@ public class Bar {
             SwingUtilities.invokeLater(() -> {
                 frame.dispose();
 
-                // Aquí podrías abrir tu ventana Inicio o Dashboard
-                // new Inicio().frame.setVisible(true);
+                Tod ventana = new Tod();
+                ventana.setNombreUsuario(nombreUsuario);
+                ventana.frame.setVisible(true);
             });
         });
 
@@ -112,7 +122,7 @@ public class Bar {
         private int radius;
 
         public RoundBorder(int radius) {
-            super(Color.LIGHT_GRAY, 1, true);
+            super(new Color(148, 163, 184), 1, true);
             this.radius = radius;
         }
 

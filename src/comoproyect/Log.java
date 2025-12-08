@@ -1,6 +1,7 @@
 package comoproyect;
 
 import java.awt.*;
+import java.awt.event.*;
 import javax.swing.*;
 import javax.swing.border.*;
 import java.sql.*;
@@ -9,263 +10,270 @@ import java.util.Base64;
 
 public class Log {
 
-	public JFrame frmLogin;
-	private JTextField txtUsername;
-	private JPasswordField txtPassword;
-	Reg r = new Reg();
-	Bar b = new Bar();
-	String nombreUsuario = "";
+    public JFrame frmLogin;
+    private JTextField txtUsername;
+    private JPasswordField txtPassword;
 
-	// Taqueria Colors
-	private final Color PRIMARY_COLOR = new Color(230, 81, 0); // Orange
-	private final Color DARK_BG = new Color(33, 33, 33); // Dark Grey
+    Reg r;
+    Bar b = new Bar(); 
+    String nombreUsuario = "";
 
-	public static void main(String[] args) {
-		EventQueue.invokeLater(() -> {
-			try {
-				verificarBaseDeDatos(); // Ensure DB and tables exist
-				Log window = new Log();
-				window.frmLogin.setVisible(true);
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-		});
-	}
+    // 🎨 COLORES
+    private final Color SIDEBAR_COLOR = new Color(30, 41, 59);
+    private final Color PRIMARY_COLOR = new Color(59, 130, 246);
+    private final Color ACCENT_COLOR = new Color(251, 146, 60);
+    private final Color BG_COLOR = new Color(30, 41, 59);
+    private final Color CARD_COLOR = Color.WHITE;
+    private final Color TEXT_DARK = new Color(30, 41, 59);
+    private final Color TEXT_LIGHT = new Color(148, 163, 184);
 
-	private static void verificarBaseDeDatos() {
-		String urlServer = "jdbc:mysql://localhost:3306/";
-		String dbName = "taqueria_db";
-		String user = "root";
-		String pass = "";
-	
-		try (Connection con = DriverManager.getConnection(urlServer, user, pass);
-				Statement stmt = con.createStatement()) {
+    public static void main(String[] args) {
+        EventQueue.invokeLater(() -> {
+            try {
+                verificarBaseDeDatos();
+                Log window = new Log();
+                window.frmLogin.setVisible(true);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
 
-			// Create Database
-			stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS " + dbName);
-			stmt.executeUpdate("USE " + dbName);
+    // 📌 CREA LA BASE DE DATOS Y TABLAS AUTOMÁTICAMENTE
+    private static void verificarBaseDeDatos() {
+        String urlServer = "jdbc:mysql://localhost:3306/";
+        String dbName = "tienda_db";
 
-			// 1. Table 'usuarios'
-			String sqlUsuarios = "CREATE TABLE IF NOT EXISTS usuarios (" + "id INT AUTO_INCREMENT PRIMARY KEY, "
-					+ "usuario VARCHAR(50) NOT NULL UNIQUE, " + "password VARCHAR(255) NOT NULL, "
-					+ "nombre VARCHAR(100) NOT NULL" + ")";
-			stmt.executeUpdate(sqlUsuarios);
+        try (Connection con = DriverManager.getConnection(urlServer, "root", "");
+             Statement stmt = con.createStatement()) {
 
-			// 2. Table 'cliente'
-			String sqlCliente = "CREATE TABLE IF NOT EXISTS cliente (" + "id_cliente INT AUTO_INCREMENT PRIMARY KEY, "
-					+ "nombre VARCHAR(100) NOT NULL, " + "telefono VARCHAR(20)" + ")";
-			stmt.executeUpdate(sqlCliente);
+            stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS " + dbName);
+            stmt.executeUpdate("USE " + dbName);
 
-			// 3. Table 'empleado'
-			String sqlEmpleado = "CREATE TABLE IF NOT EXISTS empleado ("
-					+ "id_empleado INT AUTO_INCREMENT PRIMARY KEY, " + "nombre VARCHAR(100) NOT NULL, "
-					+ "puesto VARCHAR(50) NOT NULL" + ")";
-			stmt.executeUpdate(sqlEmpleado);
+            // TABLA USUARIOS
+            stmt.executeUpdate("""
+                    CREATE TABLE IF NOT EXISTS usuarios (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    usuario VARCHAR(50) NOT NULL UNIQUE,
+                    password VARCHAR(255) NOT NULL,
+                    nombre VARCHAR(100) NOT NULL)
+                    """);
 
-			// 4. Table 'mesa'
-			String sqlMesa = "CREATE TABLE IF NOT EXISTS mesa (" + "id_mesa INT AUTO_INCREMENT PRIMARY KEY, "
-					+ "numero INT NOT NULL, " + "estado VARCHAR(20) DEFAULT 'Libre'" + ")";
-			stmt.executeUpdate(sqlMesa);
+            // TABLA CATEGORÍAS
+            stmt.executeUpdate("""
+                    CREATE TABLE IF NOT EXISTS categorias (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    nombre VARCHAR(50) NOT NULL)
+                    """);
 
-			// 5. Table 'producto' (Needed for details)
-			String sqlProducto = "CREATE TABLE IF NOT EXISTS producto ("
-					+ "id_producto INT AUTO_INCREMENT PRIMARY KEY, " + "nombre VARCHAR(100) NOT NULL, "
-					+ "precio DECIMAL(10,2) NOT NULL" + ")";
-			stmt.executeUpdate(sqlProducto);
+            // TABLA PRODUCTOS
+            stmt.executeUpdate("""
+                    CREATE TABLE IF NOT EXISTS productos (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    nombre VARCHAR(100) NOT NULL,
+                    precio DECIMAL(10,2) NOT NULL,
+                    stock INT NOT NULL,
+                    id_categoria INT,
+                    FOREIGN KEY (id_categoria) REFERENCES categorias(id))
+                    """);
 
-			// 6. Table 'pedido'
-			String sqlPedido = "CREATE TABLE IF NOT EXISTS pedido (" + "id_pedido INT AUTO_INCREMENT PRIMARY KEY, "
-					+ "fecha DATETIME NOT NULL, " + "total DECIMAL(10,2) NOT NULL, " + "id_cliente INT, "
-					+ "id_empleado INT, " + "id_mesa INT, " + "FOREIGN KEY(id_cliente) REFERENCES cliente(id_cliente), "
-					+ "FOREIGN KEY(id_empleado) REFERENCES empleado(id_empleado), "
-					+ "FOREIGN KEY(id_mesa) REFERENCES mesa(id_mesa)" + ")";
-			stmt.executeUpdate(sqlPedido);
+            // TABLA EMPLEADOS
+            stmt.executeUpdate("""
+                    CREATE TABLE IF NOT EXISTS empleados (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    nombre VARCHAR(100) NOT NULL,
+                    telefono VARCHAR(20),
+                    puesto VARCHAR(50))
+                    """);
 
-			// 7. Table 'detallepedidos'
-			String sqlDetalle = "CREATE TABLE IF NOT EXISTS detallepedidos ("
-					+ "id_detalle INT AUTO_INCREMENT PRIMARY KEY, " + "id_pedido INT NOT NULL, "
-					+ "id_producto INT NOT NULL, " + "cantidad INT NOT NULL, " + "nota VARCHAR(200), "
-					+ "subtotal DECIMAL(10,2) NOT NULL, " + "FOREIGN KEY(id_pedido) REFERENCES pedido(id_pedido), "
-					+ "FOREIGN KEY(id_producto) REFERENCES producto(id_producto)" + ")";
-			stmt.executeUpdate(sqlDetalle);
-		} catch (SQLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
+            // TABLA CLIENTES
+            stmt.executeUpdate("""
+                    CREATE TABLE IF NOT EXISTS clientes (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    nombre VARCHAR(100) NOT NULL,
+                    telefono VARCHAR(20),
+                    direccion VARCHAR(150))
+                    """);
 
-	public Log() {
-		initialize();
-	}
+            // TABLA VENTAS
+            stmt.executeUpdate("""
+                    CREATE TABLE IF NOT EXISTS ventas (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    id_producto INT NOT NULL,
+                    id_cliente INT,
+                    cantidad INT NOT NULL,
+                    total DECIMAL(10,2) NOT NULL,
+                    fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (id_producto) REFERENCES productos(id),
+                    FOREIGN KEY (id_cliente) REFERENCES clientes(id))
+                    """);
 
-	private void initialize() {
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 
-		frmLogin = new JFrame();
-		frmLogin.setUndecorated(true);
-		frmLogin.setSize(488, 552);
-		frmLogin.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		frmLogin.setLocationRelativeTo(null);
-		frmLogin.getContentPane().setLayout(null);
+    public Log() {
+        initialize();
+    }
 
-		JButton btnCerrar = new JButton("X");
-		btnCerrar.setBounds(450, 5, 30, 30);
-		btnCerrar.setFont(new Font("Segoe UI", Font.BOLD, 14));
-		btnCerrar.setForeground(Color.WHITE);
-		btnCerrar.setBackground(new Color(200, 0, 0));
-		btnCerrar.setFocusPainted(false);
-		btnCerrar.setBorder(null);
-		btnCerrar.setCursor(new Cursor(Cursor.HAND_CURSOR));
-		btnCerrar.addActionListener(e -> System.exit(0));
-		frmLogin.getContentPane().add(btnCerrar);
+    private void initialize() {
 
-		JPanel panelFondo = new JPanel();
-		panelFondo.setBackground(DARK_BG);
-		panelFondo.setBounds(0, 0, 480, 520);
-		panelFondo.setLayout(null);
-		frmLogin.getContentPane().add(panelFondo);
+        frmLogin = new JFrame();
+        frmLogin.setUndecorated(true);
+        frmLogin.setSize(500, 560);
+        frmLogin.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frmLogin.setLocationRelativeTo(null);
+        frmLogin.getContentPane().setBackground(BG_COLOR);
+        frmLogin.getContentPane().setLayout(null);
 
-		JPanel tarjeta = new JPanel();
-		tarjeta.setBackground(Color.WHITE);
-		tarjeta.setBounds(60, 11, 360, 498);
-		tarjeta.setLayout(null);
-		tarjeta.setBorder(new RoundBorder(30));
-		panelFondo.add(tarjeta);
+        // BOTÓN CERRAR
+        JButton btnCerrar = new JButton("X");
+        btnCerrar.setBounds(455, 10, 35, 30);
+        btnCerrar.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        btnCerrar.setBackground(new Color(239, 68, 68));
+        btnCerrar.setForeground(Color.WHITE);
+        btnCerrar.setBorder(null);
+        btnCerrar.setFocusPainted(false);
+        btnCerrar.addActionListener(e -> System.exit(0));
+        frmLogin.getContentPane().add(btnCerrar);
 
-		JLabel lblWelcome = new JLabel("");
-		try {
-			lblWelcome.setIcon(new ImageIcon(Log.class.getResource("/comoproyect/logo_burning_godzilla_257x201.png")));
-		} catch (Exception e) {
-			lblWelcome.setText("TAQUERÍA");
-			lblWelcome.setHorizontalAlignment(SwingConstants.CENTER);
-		}
-		lblWelcome.setFont(new Font("Segoe UI", Font.BOLD, 32));
-		lblWelcome.setBounds(52, 11, 257, 201);
-		tarjeta.add(lblWelcome);
+        // TARJETA PRINCIPAL
+        JPanel tarjeta = new JPanel();
+        tarjeta.setBackground(CARD_COLOR);
+        tarjeta.setBounds(70, 26, 364, 504);
+        tarjeta.setLayout(null);
+        tarjeta.setBorder(new RoundBorder(25, Color.LIGHT_GRAY));
+        frmLogin.getContentPane().add(tarjeta);
 
-		JLabel lblUser = new JLabel("Email / Usuario");
-		lblUser.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-		lblUser.setBounds(40, 235, 200, 20);
-		tarjeta.add(lblUser);
+        JLabel lblTitulo = new JLabel("Iniciar Sesión con", SwingConstants.CENTER);
+        lblTitulo.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        lblTitulo.setForeground(TEXT_DARK);
+        lblTitulo.setBounds(0, 0, 360, 40);
+        tarjeta.add(lblTitulo);
 
-		txtUsername = new JTextField();
-		txtUsername.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-		txtUsername.setBounds(40, 266, 280, 35);
-		txtUsername.setBorder(new RoundBorder(15));
-		tarjeta.add(txtUsername);
+        JLabel lblUser = new JLabel("Usuario o Email");
+        lblUser.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        lblUser.setForeground(TEXT_DARK);
+        lblUser.setBounds(40, 220, 200, 20);
+        tarjeta.add(lblUser);
 
-		JLabel lblPass = new JLabel("Password");
-		lblPass.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-		lblPass.setBounds(40, 312, 200, 20);
-		tarjeta.add(lblPass);
+        txtUsername = new JTextField();
+        txtUsername.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        txtUsername.setBounds(40, 251, 280, 35);
+        txtUsername.setBorder(new RoundBorder(15, TEXT_LIGHT));
+        tarjeta.add(txtUsername);
 
-		txtPassword = new JPasswordField();
-		txtPassword.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-		txtPassword.setBounds(40, 343, 280, 35);
-		txtPassword.setBorder(new RoundBorder(15));
-		tarjeta.add(txtPassword);
+        JLabel lblPass = new JLabel("Contraseña");
+        lblPass.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        lblPass.setForeground(TEXT_DARK);
+        lblPass.setBounds(40, 297, 200, 20);
+        tarjeta.add(lblPass);
 
-		JButton btnLogin = new JButton("Inicia Sesión");
-		btnLogin.setFont(new Font("Segoe UI", Font.BOLD, 16));
-		btnLogin.setBounds(89, 416, 180, 40);
-		btnLogin.setBackground(PRIMARY_COLOR);
-		btnLogin.setForeground(Color.WHITE);
-		btnLogin.setBorder(new RoundBorder(20));
-		btnLogin.setFocusPainted(false);
-		btnLogin.setCursor(new Cursor(Cursor.HAND_CURSOR));
-		tarjeta.add(btnLogin);
+        txtPassword = new JPasswordField();
+        txtPassword.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        txtPassword.setBounds(40, 328, 280, 35);
+        txtPassword.setBorder(new RoundBorder(15, TEXT_LIGHT));
+        tarjeta.add(txtPassword);
 
-		btnLogin.addActionListener(e -> iniciarSesion());
+        JButton btnLogin = new JButton("Entrar");
+        btnLogin.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        btnLogin.setBounds(87, 405, 170, 40);
+        btnLogin.setBackground(PRIMARY_COLOR);
+        btnLogin.setForeground(Color.WHITE);
+        btnLogin.setBorder(new RoundBorder(20, PRIMARY_COLOR));
+        btnLogin.setFocusPainted(false);
+        btnLogin.addActionListener(e -> iniciarSesion());
+        tarjeta.add(btnLogin);
 
-		JLabel lblRegistro = new JLabel("Registrarse");
-		lblRegistro.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-		lblRegistro.setForeground(PRIMARY_COLOR);
-		lblRegistro.setBounds(144, 467, 68, 20);
-		lblRegistro.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        JLabel lblRegistro = new JLabel("Crear una cuenta");
+        lblRegistro.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        lblRegistro.setForeground(ACCENT_COLOR);
+        lblRegistro.setBounds(120, 456, 200, 25);
+        lblRegistro.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
-		lblRegistro.addMouseListener(new java.awt.event.MouseAdapter() {
-			public void mouseClicked(java.awt.event.MouseEvent evt) {
-				r.frmReg.setLocationRelativeTo(frmLogin);
-				r.frmReg.setVisible(true);
-			}
-		});
+        lblRegistro.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent evt) {
+                r = new Reg();
+                r.frame.setLocationRelativeTo(frmLogin);
+                r.frame.setVisible(true);
+            }
+        });
+        tarjeta.add(lblRegistro);
 
-		tarjeta.add(lblRegistro);
-	}
+        JLabel lblNewLabel = new JLabel("");
+        lblNewLabel.setIcon(new ImageIcon(Log.class.getResource("/comoproyect/don_pepe_206x162.png")));
+        lblNewLabel.setBounds(80, 36, 205, 162);
+        tarjeta.add(lblNewLabel);
+    }
 
-	// ---------------------------------------------------------
-	// MÉTODO CORRECTO PARA INICIAR SESIÓN
-	// ---------------------------------------------------------
-	private void iniciarSesion() {
-		String user = txtUsername.getText();
-		String pass = new String(txtPassword.getPassword());
-		String encrypted = encryptPassword(pass);
+    // INICIAR SESIÓN
+    private void iniciarSesion() {
+        String user = txtUsername.getText().trim();
+        String pass = new String(txtPassword.getPassword());
 
-		Connection con = null;
-		PreparedStatement ps = null;
+        if (user.isEmpty() || pass.isEmpty()) {
+            JOptionPane.showMessageDialog(frmLogin, "Rellena todos los campos");
+            return;
+        }
 
-		try {
-			// Direct connection to 'taqueria_db' DB
-			con = DriverManager.getConnection("jdbc:mysql://localhost:3306/taqueria_db", "root", "");
+        String encrypted = encryptPassword(pass);
 
-			String sql = "SELECT nombre FROM usuarios WHERE usuario=? AND password=?";
-			ps = con.prepareStatement(sql);
-			ps.setString(1, user);
-			ps.setString(2, encrypted);
+        try (Connection con = DriverManager.getConnection(
+                "jdbc:mysql://localhost:3306/tienda_db", "root", "");
+             PreparedStatement ps = con.prepareStatement(
+                     "SELECT nombre FROM usuarios WHERE usuario=? AND password=?")) {
 
-			ResultSet rs = ps.executeQuery();
+            ps.setString(1, user);
+            ps.setString(2, encrypted);
 
-			if (rs.next()) {
-				nombreUsuario = rs.getString("nombre");
+            ResultSet rs = ps.executeQuery();
 
-				b.setNombreUsuario(nombreUsuario);
-				b.frame.setVisible(true);
-				b.startCarga();
+            if (rs.next()) {
+                nombreUsuario = rs.getString("nombre");
 
-				frmLogin.dispose(); // cierra login
-			} else {
-				JOptionPane.showMessageDialog(frmLogin, "Usuario o contraseña incorrectos");
-			}
+                b.setNombreUsuario(nombreUsuario);
+                b.frame.setVisible(true);
+                b.startCarga();
 
-		} catch (SQLException ex) {
-			ex.printStackTrace();
-			JOptionPane.showMessageDialog(frmLogin, "Error SQL: " + ex.getMessage());
-		} finally {
-			try {
-				if (ps != null)
-					ps.close();
-				if (con != null)
-					con.close();
-			} catch (SQLException e) {
-				e.printStackTrace();
-			}
-		}
-	}
+                frmLogin.dispose();
 
-	public static String encryptPassword(String password) {
-		try {
-			MessageDigest digest = MessageDigest.getInstance("SHA-256");
-			byte[] hash = digest.digest(password.getBytes("UTF-8"));
-			return Base64.getEncoder().encodeToString(hash);
-		} catch (Exception e) {
-			throw new RuntimeException("Error al encriptar", e);
-		}
-	}
+            } else {
+                JOptionPane.showMessageDialog(frmLogin, "Usuario o contraseña incorrectos");
+            }
 
-	class RoundBorder extends LineBorder {
-		private int radius;
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(frmLogin, "Error SQL: " + ex.getMessage());
+        }
+    }
 
-		public RoundBorder(int radius) {
-			super(Color.LIGHT_GRAY, 1, true);
-			this.radius = radius;
-		}
+    // ENCRIPTAR CONTRASEÑA
+    public static String encryptPassword(String password) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(password.getBytes("UTF-8"));
+            return Base64.getEncoder().encodeToString(hash);
+        } catch (Exception e) {
+            throw new RuntimeException("Error al encriptar", e);
+        }
+    }
 
-		@Override
-		public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
-			Graphics2D g2 = (Graphics2D) g.create();
-			g2.setColor(lineColor);
-			g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-			g2.drawRoundRect(x, y, width - 1, height - 1, radius, radius);
-			g2.dispose();
-		}
-	}
+    // BORDE REDONDO
+    class RoundBorder extends LineBorder {
+        private int radius;
+
+        public RoundBorder(int radius, Color color) {
+            super(color, 1, true);
+            this.radius = radius;
+        }
+
+        @Override
+        public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setColor(lineColor);
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.drawRoundRect(x, y, width - 1, height - 1, radius, radius);
+            g2.dispose();
+        }
+    }
 }

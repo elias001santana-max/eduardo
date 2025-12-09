@@ -7,8 +7,16 @@ import java.awt.*;
 import java.awt.event.*;
 import java.sql.Connection;
 import java.util.Vector;
+import java.awt.EventQueue;
 
 public class Tod {
+
+    // Variables de sesión para Corte de Caja
+    private int ventasHoy = 0;
+    private int clientesHoy = 0;
+    private double gananciasHoy = 0.0; // Total de ganancias del día
+    // Mapa para rastrear ventas por categoría en la sesión actual: NombreCategoria -> CantidadVendida
+    private java.util.HashMap<String, Integer> ventasPorCategoriaHoy = new java.util.HashMap<>();
 
     public JFrame frame;
     private String nombreUsuario = "Usuario";
@@ -21,7 +29,8 @@ public class Tod {
     // Componentes de la tabla de productos
     private DefaultTableModel modeloProductos;
     private JTable tablaProductos;
-    private JTextField txtIdProducto, txtNombreProducto, txtPrecio, txtStock, txtIdCategoria, txtEstado;
+    private JTextField txtIdProducto, txtNombreProducto, txtPrecio, txtStock, txtEstado;
+    private JComboBox<String> comboCategoria; // JComboBox para categorías
     
     // Componentes de la tabla de clientes
     private DefaultTableModel modeloClientes;
@@ -31,13 +40,14 @@ public class Tod {
     // Componentes de la tabla de categorías
     private DefaultTableModel modeloCategorias;
     private JTable tablaCategorias;
-    private JTextField txtIdCategoriaCat, txtNombreCategoria, txtDescripcionCategoria, txtProductoCategoria;
+    private JTextField txtIdCategoriaCat, txtNombreCategoria, txtDescripcionCategoria, txtProductoCategoria, txtStockCategoria;
     
     // Variables para preservar el estado de categorías entre cambios de panel
     private String categoriaIdPreservado = "";
     private String categoriaNombrePreservado = "";
     private String categoriaDescripcionPreservado = "";
     private String categoriaProductoPreservado = "";
+    private String categoriaStockPreservado = "";
     private int categoriaFilaSeleccionada = -1; // Índice de fila seleccionada
     
     // Componentes del panel de ventas
@@ -144,12 +154,11 @@ public class Tod {
         frame.getContentPane().setBackground(BG_COLOR);
         
         // ==================== ATAJOS DE TECLADO GLOBALES ====================
-        // F3 = Producto, F4 = Empleado, F5 = Cliente, F6 = Ventas, F7 = Categoría
+        // F3 = Producto, F4 = Empleado, F5 = Cliente, F7 = Categoría
+        // Flecha Arriba = Incrementar cantidad en carrito, Flecha Abajo = Decrementar cantidad en carrito
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(new KeyEventDispatcher() {
             @Override
             public boolean dispatchKeyEvent(KeyEvent e) {
-                // ATAJOS DE TECLADO DESHABILITADOS TEMPORALMENTE
-                /*
                 if (e.getID() == KeyEvent.KEY_PRESSED) {
                     switch(e.getKeyCode()) {
                         case KeyEvent.VK_F3:
@@ -161,15 +170,23 @@ public class Tod {
                         case KeyEvent.VK_F5:
                             mostrarPanelClientes();
                             return true;
-                        case KeyEvent.VK_F6:
-                            mostrarPanelVentas();
-                            return true;
+                        // case KeyEvent.VK_F6:
+                        //     mostrarPanelVentas();  // Método no existe aún
+                        //     return true;
                         case KeyEvent.VK_F7:
                             mostrarPanelCategorias();
                             return true;
+                        // case KeyEvent.VK_F12:
+                        //     finalizarVenta();  // Método no existe aún
+                        //     return true;
+                        case KeyEvent.VK_UP:
+                            incrementarCantidadCarrito();
+                            return true;
+                        case KeyEvent.VK_DOWN:
+                            decrementarCantidadCarrito();
+                            return true;
                     }
                 }
-                */
                 return false;
             }
         });
@@ -805,15 +822,38 @@ public class Tod {
         txtStock.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         formPanel.add(txtStock);
         
-        JLabel lblCategoria = new JLabel("ID Categoría:");
+        JLabel lblCategoria = new JLabel("Categoría:");
         lblCategoria.setFont(new Font("Segoe UI", Font.BOLD, 14));
         lblCategoria.setBounds(190, 95, 120, 25);
         formPanel.add(lblCategoria);
         
-        txtIdCategoria = new JTextField();
-        txtIdCategoria.setBounds(190, 120, 150, 35);
-        txtIdCategoria.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        formPanel.add(txtIdCategoria);
+        // JComboBox para categorías (se carga dinámicamente desde la BD)
+        comboCategoria = new JComboBox<>();
+        comboCategoria.setBounds(190, 120, 150, 35);
+        comboCategoria.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        
+        // Cargar categorías desde la base de datos
+        try {
+            Connection conn = Conexion.getInstancia().getConnection();
+            String sql = "SELECT id, nombre FROM categorias ORDER BY nombre";
+            java.sql.PreparedStatement pst = conn.prepareStatement(sql);
+            java.sql.ResultSet rs = pst.executeQuery();
+            
+            comboCategoria.addItem("-- Seleccionar --");
+            while (rs.next()) {
+                int id = rs.getInt("id");
+                String nombre = rs.getString("nombre");
+                comboCategoria.addItem(id + " - " + nombre);
+            }
+            
+            rs.close();
+            pst.close();
+        } catch (Exception e) {
+            System.err.println("Error cargando categorías: " + e.getMessage());
+            comboCategoria.addItem("Error al cargar");
+        }
+        
+        formPanel.add(comboCategoria);
         
         JLabel lblDescripcion = new JLabel("Descripción:");
         lblDescripcion.setFont(new Font("Segoe UI", Font.BOLD, 14));
@@ -898,7 +938,22 @@ public class Tod {
                     txtNombreProducto.setText(tablaProductos.getValueAt(fila, 1).toString());
                     txtPrecio.setText(tablaProductos.getValueAt(fila, 2).toString());
                     txtStock.setText(tablaProductos.getValueAt(fila, 3).toString());
-                    txtIdCategoria.setText(tablaProductos.getValueAt(fila, 4).toString());
+                    
+                    // Seleccionar categoría en el JComboBox
+                    String idCategoriaStr = tablaProductos.getValueAt(fila, 4).toString();
+                    if (idCategoriaStr != null && !idCategoriaStr.isEmpty()) {
+                        // Buscar el item que comienza con este ID
+                        for (int i = 0; i < comboCategoria.getItemCount(); i++) {
+                            String item = comboCategoria.getItemAt(i);
+                            if (item.startsWith(idCategoriaStr + " - ")) {
+                                comboCategoria.setSelectedIndex(i);
+                                break;
+                            }
+                        }
+                    } else {
+                        comboCategoria.setSelectedIndex(0); // Seleccionar "-- Seleccionar --"
+                    }
+                    
                     txtEstado.setText(tablaProductos.getValueAt(fila, 5).toString());
                     
                     // ✨ SINCRONIZAR CON VENTAS: Agregar producto a tabla de ventas
@@ -976,8 +1031,25 @@ public class Tod {
                 String nombre = txtNombreProducto.getText();
                 double precio = Double.parseDouble(txtPrecio.getText());
                 int stock = Integer.parseInt(txtStock.getText());
-                String idCategoriaStr = txtIdCategoria.getText().trim();
-                Integer idCategoria = idCategoriaStr.isEmpty() ? null : Integer.parseInt(idCategoriaStr);
+                
+                // Obtener ID de categoría del JComboBox
+                String categoriaSeleccionada = (String) comboCategoria.getSelectedItem();
+                Integer idCategoria = null;
+                String idCategoriaStr = "";
+                
+                if (categoriaSeleccionada != null && !categoriaSeleccionada.equals("-- Seleccionar --") && !categoriaSeleccionada.equals("Error al cargar")) {
+                    // Extraer el ID de la cadena "ID - Nombre"
+                    String[] partes = categoriaSeleccionada.split(" - ");
+                    if (partes.length > 0) {
+                        try {
+                            idCategoria = Integer.parseInt(partes[0].trim());
+                            idCategoriaStr = String.valueOf(idCategoria);
+                        } catch (NumberFormatException e) {
+                            // Si no se puede parsear, dejar como null
+                        }
+                    }
+                }
+                
                 String descripcion = txtEstado.getText();
                 
                 // Insertar en la base de datos
@@ -1042,8 +1114,25 @@ public class Tod {
                     String nombre = txtNombreProducto.getText();
                     double precio = Double.parseDouble(txtPrecio.getText());
                     int stock = Integer.parseInt(txtStock.getText());
-                    String idCategoriaStr = txtIdCategoria.getText().trim();
-                    Integer idCategoria = idCategoriaStr.isEmpty() ? null : Integer.parseInt(idCategoriaStr);
+                    
+                    // Obtener ID de categoría del JComboBox
+                    String categoriaSeleccionada = (String) comboCategoria.getSelectedItem();
+                    Integer idCategoria = null;
+                    String idCategoriaStr = "";
+                    
+                    if (categoriaSeleccionada != null && !categoriaSeleccionada.equals("-- Seleccionar --") && !categoriaSeleccionada.equals("Error al cargar")) {
+                        // Extraer el ID de la cadena "ID - Nombre"
+                        String[] partes = categoriaSeleccionada.split(" - ");
+                        if (partes.length > 0) {
+                            try {
+                                idCategoria = Integer.parseInt(partes[0].trim());
+                                idCategoriaStr = String.valueOf(idCategoria);
+                            } catch (NumberFormatException e) {
+                                // Si no se puede parsear, dejar como null
+                            }
+                        }
+                    }
+                    
                     String descripcion = txtEstado.getText();
                     
                     // Actualizar en la base de datos
@@ -1133,7 +1222,7 @@ public class Tod {
         txtNombreProducto.setText("");
         txtPrecio.setText("");
         txtStock.setText("");
-        txtIdCategoria.setText("");
+        comboCategoria.setSelectedIndex(0); // Resetear a "-- Seleccionar --"
         txtEstado.setText("");
         tablaProductos.clearSelection();
     }
@@ -1142,9 +1231,15 @@ public class Tod {
         if (txtNombreProducto.getText().trim().isEmpty() || 
             txtPrecio.getText().trim().isEmpty() || 
             txtStock.getText().trim().isEmpty() || 
-            txtIdCategoria.getText().trim().isEmpty() || 
             txtEstado.getText().trim().isEmpty()) {
-            JOptionPane.showMessageDialog(frame, "Todos los campos son obligatorios", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(frame, "Nombre, Precio, Stock y Descripción son obligatorios", "Error", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
+        
+        // Validar que se haya seleccionado una categoría
+        String categoriaSeleccionada = (String) comboCategoria.getSelectedItem();
+        if (categoriaSeleccionada == null || categoriaSeleccionada.equals("-- Seleccionar --") || categoriaSeleccionada.equals("Error al cargar")) {
+            JOptionPane.showMessageDialog(frame, "Debe seleccionar una categoría", "Error", JOptionPane.ERROR_MESSAGE);
             return false;
         }
         
@@ -1156,12 +1251,11 @@ public class Tod {
             return false;
         }
         
-        // Validar que stock e id_categoria sean números enteros
+        // Validar que stock sea un número entero
         try {
             Integer.parseInt(txtStock.getText());
-            Integer.parseInt(txtIdCategoria.getText());
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(frame, "Stock y Categoría deben ser números enteros", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(frame, "El stock debe ser un número entero", "Error", JOptionPane.ERROR_MESSAGE);
             return false;
         }
         
@@ -1442,6 +1536,7 @@ public class Tod {
         fila.add(txtDireccionCliente.getText().trim());
         fila.add(txtCiudadCliente.getText().trim());
         modeloClientes.addRow(fila);
+        clientesHoy++; // Incrementar contador de clientes hoy
         
         // Limpiar campos después de agregar
         limpiarCamposCliente();
@@ -1767,15 +1862,23 @@ public class Tod {
     }
     
     private void vaciarCarrito() {
-        if (modeloCarrito.getRowCount() > 0) {
+        if (modeloProductosDisponibles != null && modeloProductosDisponibles.getRowCount() > 0) {
             int confirmacion = JOptionPane.showConfirmDialog(frame, 
-                "¿Está seguro de vaciar el carrito?", 
+                "¿Está seguro de vaciar los productos disponibles?", 
                 "Confirmar", 
                 JOptionPane.YES_NO_OPTION);
             if (confirmacion == JOptionPane.YES_OPTION) {
-                modeloCarrito.setRowCount(0);
-                calcularTotal();
+                modeloProductosDisponibles.setRowCount(0);
+                JOptionPane.showMessageDialog(frame, 
+                    "Productos disponibles vaciados exitosamente", 
+                    "Éxito", 
+                    JOptionPane.INFORMATION_MESSAGE);
             }
+        } else {
+            JOptionPane.showMessageDialog(frame, 
+                "No hay productos disponibles para vaciar", 
+                "Información", 
+                JOptionPane.INFORMATION_MESSAGE);
         }
     }
     
@@ -1784,21 +1887,73 @@ public class Tod {
         for (int i = 0; i < modeloCarrito.getRowCount(); i++) {
             double subtotal = Double.parseDouble(modeloCarrito.getValueAt(i, 4).toString());
             totalVenta += subtotal;
-            String idCarrito = modeloCarrito.getValueAt(i, 0).toString();
-            int cantidadVendida = Integer.parseInt(modeloCarrito.getValueAt(i, 3).toString());
+        }
+        
+        // Actualizar el label del total si existe
+        if (lblTotal != null) {
+            lblTotal.setText("$" + String.format("%.2f", totalVenta));
+        }
+    }
+    
+    // Método para incrementar cantidad en el carrito (Flecha Arriba)
+    private void incrementarCantidadCarrito() {
+        if (tablaCarrito == null || modeloCarrito == null) {
+            return; // No hacer nada si no estamos en el panel de ventas
+        }
+        
+        int fila = tablaCarrito.getSelectedRow();
+        if (fila >= 0) {
+            String id = modeloCarrito.getValueAt(fila, 0).toString();
+            int cantidadActual = Integer.parseInt(modeloCarrito.getValueAt(fila, 3).toString());
+            double precio = Double.parseDouble(modeloCarrito.getValueAt(fila, 2).toString());
             
-            // Buscar el producto en la tabla de disponibles y actualizar stock
+            // Verificar stock disponible
+            int stockDisponible = 0;
             for (int j = 0; j < modeloProductosDisponibles.getRowCount(); j++) {
                 String idDisp = modeloProductosDisponibles.getValueAt(j, 0).toString();
-                if (idDisp.equals(idCarrito)) {
-                    int stockActual = Integer.parseInt(modeloProductosDisponibles.getValueAt(j, 3).toString());
-                    int nuevoStock = stockActual - cantidadVendida;
-                    modeloProductosDisponibles.setValueAt(String.valueOf(nuevoStock), j, 3);
+                if (idDisp.equals(id)) {
+                    stockDisponible = Integer.parseInt(modeloProductosDisponibles.getValueAt(j, 3).toString());
                     break;
                 }
             }
+            
+            // Solo incrementar si hay stock disponible
+            if (cantidadActual < stockDisponible) {
+                int nuevaCant = cantidadActual + 1;
+                double subtotal = precio * nuevaCant;
+                modeloCarrito.setValueAt(nuevaCant, fila, 3);
+                modeloCarrito.setValueAt(String.format("%.2f", subtotal), fila, 4);
+                calcularTotal();
+            }
         }
     }
+    
+    // Método para decrementar cantidad en el carrito (Flecha Abajo)
+    private void decrementarCantidadCarrito() {
+        if (tablaCarrito == null || modeloCarrito == null) {
+            return; // No hacer nada si no estamos en el panel de ventas
+        }
+        
+        int fila = tablaCarrito.getSelectedRow();
+        if (fila >= 0) {
+            int cantidadActual = Integer.parseInt(modeloCarrito.getValueAt(fila, 3).toString());
+            
+            if (cantidadActual > 1) {
+                // Decrementar cantidad
+                int nuevaCant = cantidadActual - 1;
+                double precio = Double.parseDouble(modeloCarrito.getValueAt(fila, 2).toString());
+                double subtotal = precio * nuevaCant;
+                modeloCarrito.setValueAt(nuevaCant, fila, 3);
+                modeloCarrito.setValueAt(String.format("%.2f", subtotal), fila, 4);
+                calcularTotal();
+            } else {
+                // Si la cantidad es 1, eliminar del carrito
+                modeloCarrito.removeRow(fila);
+                calcularTotal();
+            }
+        }
+    }
+    
     // ==================== PANEL DE CLIENTES ====================
     
     private void mostrarPanelClientes() {
@@ -2242,17 +2397,28 @@ public class Tod {
         txtDescripcionCategoria.setText(categoriaDescripcionPreservado); // Restaurar valor preservado
         formPanel.add(txtDescripcionCategoria);
         
-        // Fila 2: Producto
+        // Fila 2: Producto y Stock
         JLabel lblProducto = new JLabel("Producto:");
         lblProducto.setFont(new Font("Segoe UI", Font.BOLD, 14));
         lblProducto.setBounds(20, 95, 100, 25);
         formPanel.add(lblProducto);
         
         txtProductoCategoria = new JTextField();
-        txtProductoCategoria.setBounds(20, 120, 710, 35);
+        txtProductoCategoria.setBounds(20, 120, 500, 35);
         txtProductoCategoria.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         txtProductoCategoria.setText(categoriaProductoPreservado); // Restaurar valor preservado
         formPanel.add(txtProductoCategoria);
+        
+        JLabel lblStock = new JLabel("Stock:");
+        lblStock.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        lblStock.setBounds(540, 95, 100, 25);
+        formPanel.add(lblStock);
+        
+        txtStockCategoria = new JTextField();
+        txtStockCategoria.setBounds(540, 120, 190, 35);
+        txtStockCategoria.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        txtStockCategoria.setText(categoriaStockPreservado); // Restaurar valor preservado
+        formPanel.add(txtStockCategoria);
         
         // Panel de botones
         JPanel buttonPanel = new JPanel();
@@ -2319,6 +2485,7 @@ public class Tod {
         modeloCategorias.addColumn("Nombre");
         modeloCategorias.addColumn("Descripción");
         modeloCategorias.addColumn("Producto");
+        modeloCategorias.addColumn("Stock");
         
         tablaCategorias = new JTable(modeloCategorias);
         tablaCategorias.setFont(new Font("Segoe UI", Font.PLAIN, 13));
@@ -2339,12 +2506,18 @@ public class Tod {
                     categoriaNombrePreservado = tablaCategorias.getValueAt(fila, 1).toString();
                     categoriaDescripcionPreservado = tablaCategorias.getValueAt(fila, 2).toString();
                     categoriaProductoPreservado = tablaCategorias.getValueAt(fila, 3).toString();
+                    categoriaStockPreservado = "";
+                    try {
+                        Object stockObj = tablaCategorias.getValueAt(fila, 4);
+                        if (stockObj != null) categoriaStockPreservado = stockObj.toString();
+                    } catch (Exception ex) {}
                     
                     // Cargar datos de la fila seleccionada en los campos
                     txtIdCategoriaCat.setText(categoriaIdPreservado);
                     txtNombreCategoria.setText(categoriaNombrePreservado);
                     txtDescripcionCategoria.setText(categoriaDescripcionPreservado);
                     txtProductoCategoria.setText(categoriaProductoPreservado);
+                    txtStockCategoria.setText(categoriaStockPreservado);
                     
                     // ✨ NUEVA FUNCIONALIDAD: Agregar fila vacía EN LA TABLA DE PRODUCTOS
                     // Para facilitar agregar productos de esta categoría
@@ -2689,25 +2862,25 @@ public class Tod {
         }
         mensaje.append(String.format("\nTOTAL: $%.2f\n", totalVenta));
         
-        // Agregar datos del ÚLTIMO cliente agregado
-        mensaje.append("\n=== DATOS DEL CLIENTE ===\n");
+        // Agregar datos de TODOS los clientes
+        mensaje.append("\n=== DATOS DE CLIENTES ===\n");
         if (modeloClientes != null && modeloClientes.getRowCount() > 0) {
-            // Obtener el último cliente (última fila de la tabla)
-            int ultimaFila = modeloClientes.getRowCount() - 1;
-            String id = modeloClientes.getValueAt(ultimaFila, 0).toString();
-            String nombre = modeloClientes.getValueAt(ultimaFila, 1).toString();
-            String apellido = modeloClientes.getValueAt(ultimaFila, 2).toString();
-            String telefono = modeloClientes.getValueAt(ultimaFila, 3).toString();
-            String email = modeloClientes.getValueAt(ultimaFila, 4).toString();
-            String direccion = modeloClientes.getValueAt(ultimaFila, 5).toString();
-            String ciudad = modeloClientes.getValueAt(ultimaFila, 6).toString();
-            
-            mensaje.append(String.format("  ID: %s\n", id));
-            mensaje.append(String.format("  Nombre: %s %s\n", nombre, apellido));
-            mensaje.append(String.format("  Teléfono: %s\n", telefono));
-            mensaje.append(String.format("  Email: %s\n", email));
-            mensaje.append(String.format("  Dirección: %s\n", direccion));
-            mensaje.append(String.format("  Ciudad: %s\n", ciudad));
+            for (int i = 0; i < modeloClientes.getRowCount(); i++) {
+                String id = modeloClientes.getValueAt(i, 0).toString();
+                String nombre = modeloClientes.getValueAt(i, 1).toString();
+                String apellido = modeloClientes.getValueAt(i, 2).toString();
+                String telefono = modeloClientes.getValueAt(i, 3).toString();
+                String email = modeloClientes.getValueAt(i, 4).toString();
+                String direccion = modeloClientes.getValueAt(i, 5).toString();
+                String ciudad = modeloClientes.getValueAt(i, 6).toString();
+                
+                mensaje.append(String.format("\nCliente #%s:\n", id));
+                mensaje.append(String.format("  Nombre completo: %s %s\n", nombre, apellido));
+                mensaje.append(String.format("  Teléfono: %s\n", telefono));
+                mensaje.append(String.format("  Email: %s\n", email));
+                mensaje.append(String.format("  Dirección: %s\n", direccion));
+                mensaje.append(String.format("  Ciudad: %s\n", ciudad));
+            }
         } else {
             mensaje.append("  No hay clientes registrados\n");
         }
@@ -2720,14 +2893,150 @@ public class Tod {
             JOptionPane.YES_NO_OPTION);
         
         if (confirmacion == JOptionPane.YES_OPTION) {
-            // TODO: Guardar venta en base de datos
-            JOptionPane.showMessageDialog(frame, 
-                "Venta finalizada exitosamente\nTotal: $" + String.format("%.2f", totalVenta), 
-                "Éxito", 
-                JOptionPane.INFORMATION_MESSAGE);
-            
-            vaciarCarrito();
-            System.out.println("✅ Venta finalizada por $" + String.format("%.2f", totalVenta));
+            try {
+                // Usar FileDialog nativo de Windows para elegir dónde guardar
+                java.awt.FileDialog fileDialog = new java.awt.FileDialog(frame, "Guardar Ticket de Venta", java.awt.FileDialog.SAVE);
+                fileDialog.setFile("Ticket_Venta_" + System.currentTimeMillis() + ".pdf");
+                fileDialog.setVisible(true);
+                
+                String directorio = fileDialog.getDirectory();
+                String archivo = fileDialog.getFile();
+                
+                if (directorio != null && archivo != null) {
+                    String rutaPDF = directorio + archivo;
+                    
+                    // Asegurar que tenga extensión .pdf
+                    if (!rutaPDF.toLowerCase().endsWith(".pdf")) {
+                        rutaPDF += ".pdf";
+                    }
+                    
+                    // Crear archivo HTML temporal para imprimir
+                    String rutaHTMLTemp = System.getProperty("java.io.tmpdir") + "ticket_temp_" + System.currentTimeMillis() + ".html";
+                    
+                    // Crear contenido HTML
+                    StringBuilder html = new StringBuilder();
+                    html.append("<!DOCTYPE html>\n");
+                    html.append("<html>\n<head>\n");
+                    html.append("<meta charset='UTF-8'>\n");
+                    html.append("<title>Ticket de Venta</title>\n");
+                    html.append("<style>\n");
+                    html.append("body { font-family: Arial, sans-serif; margin: 40px; }\n");
+                    html.append(".store-header { text-align: center; margin-bottom: 30px; }\n");
+                    html.append(".store-logo { max-width: 200px; max-height: 150px; margin: 0 auto 15px; display: block; }\n");
+                    html.append(".store-name { font-size: 24px; font-weight: bold; color: #333; margin-bottom: 20px; }\n");
+                    html.append("h1 { text-align: center; color: #333; }\n");
+                    html.append("h2 { color: #555; border-bottom: 2px solid #333; padding-bottom: 5px; }\n");
+                    html.append(".producto { margin: 10px 0; padding-left: 20px; }\n");
+                    html.append(".total { text-align: right; font-size: 20px; font-weight: bold; margin: 20px 0; }\n");
+                    html.append(".cliente { margin: 10px 0; padding-left: 20px; }\n");
+                    html.append("@media print { button { display: none; } }\n");
+                    html.append("</style>\n");
+                    html.append("<script>\n");
+                    html.append("window.onload = function() {\n");
+                    html.append("  setTimeout(function() { window.print(); }, 500);\n");
+                    html.append("};\n");
+                    html.append("</script>\n");
+                    html.append("</head>\n<body>\n");
+                    
+                    // === ENCABEZADO DE LA TIENDA (Imagen y Nombre) ===
+                    html.append("<div class='store-header'>\n");
+                    
+                    // Agregar imagen de la tienda si existe
+                    if (rutaImagenTiendaGuardada != null && !rutaImagenTiendaGuardada.isEmpty()) {
+                        try {
+                            // Convertir la ruta de la imagen a formato file:/// para que funcione en el navegador
+                            String rutaImagenURL = new java.io.File(rutaImagenTiendaGuardada).toURI().toString();
+                            html.append("<img src='" + rutaImagenURL + "' class='store-logo' alt='Logo de la tienda'>\n");
+                        } catch (Exception ex) {
+                            System.err.println("Error al agregar imagen al ticket: " + ex.getMessage());
+                        }
+                    }
+                    
+                    // Agregar nombre de la tienda si existe
+                    if (nombreTiendaGuardado != null && !nombreTiendaGuardado.isEmpty()) {
+                        html.append("<div class='store-name'>" + nombreTiendaGuardado + "</div>\n");
+                    }
+                    
+                    html.append("</div>\n");
+                    
+                    // Título
+                    html.append("<h1>TICKET DE VENTA</h1>\n");
+                    html.append("<hr>\n");
+                    
+                    // Datos de TODOS los clientes
+                    html.append("<h2>DATOS DE CLIENTES:</h2>\n");
+                    if (modeloClientes != null && modeloClientes.getRowCount() > 0) {
+                        for (int i = 0; i < modeloClientes.getRowCount(); i++) {
+                            String id = modeloClientes.getValueAt(i, 0).toString();
+                            String nombre = modeloClientes.getValueAt(i, 1).toString();
+                            String apellido = modeloClientes.getValueAt(i, 2).toString();
+                            String telefono = modeloClientes.getValueAt(i, 3).toString();
+                            String email = modeloClientes.getValueAt(i, 4).toString();
+                            String direccion = modeloClientes.getValueAt(i, 5).toString();
+                            String ciudad = modeloClientes.getValueAt(i, 6).toString();
+                            
+                            html.append("<div style='margin: 15px 0; padding: 10px; background: #f5f5f5; border-left: 3px solid #333;'>\n");
+                            html.append("<div class='cliente'><strong>Cliente #" + id + "</strong></div>\n");
+                            html.append("<div class='cliente'><strong>Nombre completo:</strong> " + nombre + " " + apellido + "</div>\n");
+                            html.append("<div class='cliente'><strong>Teléfono:</strong> " + telefono + "</div>\n");
+                            html.append("<div class='cliente'><strong>Email:</strong> " + email + "</div>\n");
+                            html.append("<div class='cliente'><strong>Dirección:</strong> " + direccion + "</div>\n");
+                            html.append("<div class='cliente'><strong>Ciudad:</strong> " + ciudad + "</div>\n");
+                            html.append("</div>\n");
+                        }
+                    } else {
+                        html.append("<div class='cliente'>No hay clientes registrados</div>\n");
+                    }
+                    
+                    html.append("<hr>\n");
+                    
+                    // Productos DESPUÉS
+                    html.append("<h2>PRODUCTOS:</h2>\n");
+                    for (int i = 0; i < modeloCarrito.getRowCount(); i++) {
+                        String producto = modeloCarrito.getValueAt(i, 1).toString();
+                        String cantidad = modeloCarrito.getValueAt(i, 3).toString();
+                        String subtotal = modeloCarrito.getValueAt(i, 4).toString();
+                        html.append("<div class='producto'>• " + producto + " x" + cantidad + " = $" + subtotal + "</div>\n");
+                    }
+                    
+                    // Total
+                    html.append("<div class='total'>TOTAL: $" + String.format("%.2f", totalVenta) + "</div>\n");
+                    html.append("<hr>\n");
+                    
+                    html.append("</body>\n</html>");
+                    
+                    // Guardar archivo HTML temporal
+                    java.io.FileWriter writer = new java.io.FileWriter(rutaHTMLTemp);
+                    writer.write(html.toString());
+                    writer.close();
+                    
+                    // Actualizar contadores
+                    ventasHoy++;
+                    gananciasHoy += totalVenta;
+                    
+                    // Vaciar carrito
+                    vaciarCarrito();
+                    
+                    // Mostrar mensaje de éxito
+                    JOptionPane.showMessageDialog(frame, 
+                        "Venta finalizada exitosamente\nTotal: $" + String.format("%.2f", totalVenta) + "\n\nSe abrirá el navegador.\nEn la ventana de impresión:\n1. Selecciona 'Guardar como PDF'\n2. Guarda en: " + rutaPDF, 
+                        "Éxito", 
+                        JOptionPane.INFORMATION_MESSAGE);
+                    
+                    // Abrir el HTML en el navegador (se imprimirá automáticamente)
+                    java.awt.Desktop.getDesktop().browse(new java.io.File(rutaHTMLTemp).toURI());
+                    
+                    System.out.println("✅ Venta finalizada por $" + String.format("%.2f", totalVenta));
+                    System.out.println("📄 PDF se guardará en: " + rutaPDF);
+                }
+                
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(frame, 
+                    "Error al generar ticket: " + e.getMessage(), 
+                    "Error", 
+                    JOptionPane.ERROR_MESSAGE);
+                e.printStackTrace();
+            }
         }
     }
     
@@ -2801,6 +3110,7 @@ public class Tod {
                     String nombre = txtNombreCategoria.getText();
                     String descripcion = txtDescripcionCategoria.getText();
                     String producto = txtProductoCategoria.getText();
+                    String stock = txtStockCategoria.getText(); // Leer el stock
                     
                     // Actualizar en la base de datos
                     Connection conn = Conexion.getInstancia().getConnection();
@@ -2819,6 +3129,7 @@ public class Tod {
                         modeloCategorias.setValueAt(nombre, fila, 1);
                         modeloCategorias.setValueAt(descripcion, fila, 2);
                         modeloCategorias.setValueAt(producto, fila, 3);
+                        modeloCategorias.setValueAt(stock, fila, 4); // Actualizar stock en la tabla
                         
                         limpiarCamposCategoria();
                         JOptionPane.showMessageDialog(frame, "Categoría actualizada exitosamente", "Éxito", JOptionPane.INFORMATION_MESSAGE);
@@ -2881,6 +3192,7 @@ public class Tod {
         txtNombreCategoria.setText("");
         txtDescripcionCategoria.setText("");
         txtProductoCategoria.setText("");
+        txtStockCategoria.setText("");
         tablaCategorias.clearSelection();
     }
     
@@ -3007,6 +3319,198 @@ public class Tod {
     
     // ==================== PANEL DE CONFIGURACIÓN ====================
     
+    // ==================== VENTANA DE CORTE DE CAJA ====================
+    
+    private void mostrarVentanaCorteCaja() {
+        // Crear JDialog modal
+        JDialog dialog = new JDialog(frame, "Corte de Caja - Reporte del Día", true);
+        dialog.setSize(1000, 650);
+        dialog.setLocationRelativeTo(frame);
+        dialog.setLayout(new BorderLayout());
+        dialog.getContentPane().setBackground(BG_COLOR);
+        
+        // Panel Header
+        JPanel headerPanel = new JPanel();
+        headerPanel.setBackground(Color.WHITE);
+        headerPanel.setPreferredSize(new Dimension(1000, 70));
+        headerPanel.setLayout(null);
+        dialog.add(headerPanel, BorderLayout.NORTH);
+        
+        JLabel lblHeader = new JLabel("Corte de Caja - Reporte del Día");
+        lblHeader.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        lblHeader.setForeground(TEXT_DARK);
+        lblHeader.setBounds(30, 20, 500, 30);
+        headerPanel.add(lblHeader);
+        
+        // Tabla con columnas según requerimiento del usuario
+        DefaultTableModel modeloCorte = new DefaultTableModel() {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false; // Hacer tabla no editable
+            }
+        };
+        modeloCorte.addColumn("Clientes del día de hoy");
+        modeloCorte.addColumn("Nombre del cliente");
+        modeloCorte.addColumn("Categoría");
+        modeloCorte.addColumn("Stock restante del día de hoy");
+        
+        JTable tablaCorte = new JTable(modeloCorte);
+        tablaCorte.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        tablaCorte.setRowHeight(35);
+        tablaCorte.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 14));
+        tablaCorte.getTableHeader().setBackground(PRIMARY_COLOR);
+        tablaCorte.getTableHeader().setForeground(Color.WHITE);
+        
+        // Ajustar ancho de columnas
+        tablaCorte.getColumnModel().getColumn(0).setPreferredWidth(150);
+        tablaCorte.getColumnModel().getColumn(1).setPreferredWidth(250);
+        tablaCorte.getColumnModel().getColumn(2).setPreferredWidth(200);
+        tablaCorte.getColumnModel().getColumn(3).setPreferredWidth(200);
+        
+        JScrollPane scrollCorte = new JScrollPane(tablaCorte);
+        scrollCorte.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
+        scrollCorte.getViewport().setBackground(BG_COLOR);
+        dialog.add(scrollCorte, BorderLayout.CENTER);
+        
+        // Cargar datos de clientes del día
+        cargarDatosClientesDelDia(modeloCorte);
+        
+        // Panel Footer con Total Vendido y Botón Cerrar
+        JPanel footerPanel = new JPanel();
+        footerPanel.setPreferredSize(new Dimension(1000, 100));
+        footerPanel.setBackground(Color.WHITE);
+        footerPanel.setLayout(null);
+        
+        // Línea separadora
+        JPanel separador = new JPanel();
+        separador.setBackground(new Color(226, 232, 240));
+        separador.setBounds(30, 10, 940, 2);
+        footerPanel.add(separador);
+        
+        // Total vendido del día
+        JLabel lblTotalTexto = new JLabel("Total vendido el día de hoy:");
+        lblTotalTexto.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        lblTotalTexto.setForeground(TEXT_DARK);
+        lblTotalTexto.setBounds(30, 30, 350, 40);
+        footerPanel.add(lblTotalTexto);
+        
+        JLabel lblTotalValor = new JLabel(String.format("$%.2f", gananciasHoy));
+        lblTotalValor.setFont(new Font("Segoe UI", Font.BOLD, 28));
+        lblTotalValor.setForeground(new Color(16, 185, 129)); // Verde
+        lblTotalValor.setBounds(400, 25, 350, 50);
+        footerPanel.add(lblTotalValor);
+        
+        JButton btnCerrar = new JButton("Cerrar");
+        btnCerrar.setBounds(840, 30, 130, 45);
+        btnCerrar.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        btnCerrar.setBackground(new Color(239, 68, 68));
+        btnCerrar.setForeground(Color.WHITE);
+        btnCerrar.setFocusPainted(false);
+        btnCerrar.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnCerrar.addActionListener(e -> dialog.dispose());
+        footerPanel.add(btnCerrar);
+        
+        dialog.add(footerPanel, BorderLayout.SOUTH);
+        
+        dialog.setVisible(true);
+    }
+    
+    
+    /**
+     * Carga los datos de clientes del día para el reporte de Corte de Caja
+     * Toma los datos directamente de la tabla modeloClientes para actualizarse en tiempo real
+     */
+    private void cargarDatosClientesDelDia(DefaultTableModel model) {
+        try {
+            // Calcular stock total restante del día
+            int stockTotalRestante = 0;
+            if (modeloProductos != null) {
+                for (int i = 0; i < modeloProductos.getRowCount(); i++) {
+                    try {
+                        Object stockObj = modeloProductos.getValueAt(i, 3);
+                        if (stockObj != null) {
+                            stockTotalRestante += Integer.parseInt(stockObj.toString());
+                        }
+                    } catch (Exception e) {
+                        // Ignorar errores de conversión
+                    }
+                }
+            }
+            
+            // Obtener categorías de productos desde la base de datos
+            java.util.Set<String> categoriasProductos = new java.util.HashSet<>();
+            if (modeloProductos != null && modeloProductos.getRowCount() > 0) {
+                Connection conn = Conexion.getInstancia().getConnection();
+                for (int i = 0; i < modeloProductos.getRowCount(); i++) {
+                    try {
+                        Object idCategoriaObj = modeloProductos.getValueAt(i, 4); // Columna 4 = id_categoria
+                        if (idCategoriaObj != null && !idCategoriaObj.toString().isEmpty()) {
+                            int idCategoria = Integer.parseInt(idCategoriaObj.toString());
+                            
+                            // Buscar el nombre de la categoría en la base de datos
+                            String sqlCat = "SELECT nombre FROM categorias WHERE id = ?";
+                            java.sql.PreparedStatement pstCat = conn.prepareStatement(sqlCat);
+                            pstCat.setInt(1, idCategoria);
+                            java.sql.ResultSet rsCat = pstCat.executeQuery();
+                            
+                            if (rsCat.next()) {
+                                categoriasProductos.add(rsCat.getString("nombre"));
+                            }
+                            
+                            rsCat.close();
+                            pstCat.close();
+                        }
+                    } catch (Exception e) {
+                        // Ignorar errores
+                    }
+                }
+            }
+            
+            // Convertir categorías a String
+            String categoriasStr = categoriasProductos.isEmpty() ? "N/A" : String.join(", ", categoriasProductos);
+            
+            // Llenar la tabla con datos de clientes desde modeloClientes
+            if (modeloClientes != null && modeloClientes.getRowCount() > 0) {
+                for (int i = 0; i < modeloClientes.getRowCount(); i++) {
+                    // Obtener datos de la tabla de clientes
+                    String idCliente = modeloClientes.getValueAt(i, 0).toString();  // ID
+                    String nombre = modeloClientes.getValueAt(i, 1).toString();     // Nombre
+                    String apellido = modeloClientes.getValueAt(i, 2).toString();   // Apellido
+                    String nombreCompleto = nombre + " " + apellido;
+                    
+                    model.addRow(new Object[]{
+                        idCliente,                        // ID del cliente (Clientes del día de hoy)
+                        nombreCompleto,                   // Nombre del cliente
+                        categoriasStr,                    // Categorías de productos
+                        stockTotalRestante                // Stock restante del día de hoy
+                    });
+                }
+                
+                System.out.println("✅ Datos de Corte de Caja cargados: " + modeloClientes.getRowCount() + " clientes");
+            } else {
+                // Si no hay clientes, mostrar mensaje
+                model.addRow(new Object[]{
+                    "Sin clientes",
+                    "No hay clientes registrados hoy",
+                    categoriasStr,
+                    stockTotalRestante
+                });
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error cargando datos de Corte de Caja: " + e.getMessage());
+            e.printStackTrace();
+            
+            // Mostrar mensaje de error en la tabla
+            model.addRow(new Object[]{
+                "Error",
+                "No se pudieron cargar los datos",
+                "Error: " + e.getMessage(),
+                0
+            });
+        }
+    }
+
     private void mostrarPanelConfiguracion() {
         mainContent.removeAll();
         
@@ -3152,6 +3656,19 @@ public class Tod {
         });
         panelConfig.add(btnTienda);
         
+        // Botón Corte de Caja
+        JButton btnCorteCaja = new JButton("Corte de Caja");
+        btnCorteCaja.setBounds(250, 80, 200, 60); // Positioned next to Tienda button
+        btnCorteCaja.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        btnCorteCaja.setBackground(new Color(59, 130, 246)); // PRIMARY_COLOR
+        btnCorteCaja.setForeground(Color.WHITE);
+        btnCorteCaja.setFocusPainted(false);
+        btnCorteCaja.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnCorteCaja.addActionListener(e -> {
+            mostrarVentanaCorteCaja();
+        });
+        panelConfig.add(btnCorteCaja);
+        
         mainContent.revalidate();
         mainContent.repaint();
     }
@@ -3262,7 +3779,11 @@ public class Tod {
     private void cargarProductos() {
         try {
             Connection conn = Conexion.getInstancia().getConnection();
-            String sql = "SELECT id, nombre, precio, stock, id_categoria, descripcion FROM productos ORDER BY id";
+            // JOIN con la tabla categorias para obtener el nombre de la categoría
+            String sql = "SELECT p.id, p.nombre, p.precio, p.stock, p.id_categoria, c.nombre AS nombre_categoria, p.descripcion " +
+                         "FROM productos p " +
+                         "LEFT JOIN categorias c ON p.id_categoria = c.id " +
+                         "ORDER BY p.id";
             java.sql.PreparedStatement pst = conn.prepareStatement(sql);
             java.sql.ResultSet rs = pst.executeQuery();
             
@@ -3275,8 +3796,9 @@ public class Tod {
                 fila.add(String.format("%.2f", rs.getDouble("precio")));
                 fila.add(String.valueOf(rs.getInt("stock")));
                 
-                int idCategoria = rs.getInt("id_categoria");
-                fila.add(rs.wasNull() ? "" : String.valueOf(idCategoria));
+                // Agregar el NOMBRE de la categoría en lugar del ID
+                String nombreCategoria = rs.getString("nombre_categoria");
+                fila.add(nombreCategoria != null ? nombreCategoria : "");
                 
                 fila.add(rs.getString("descripcion") != null ? rs.getString("descripcion") : "");
                 modeloProductos.addRow(fila);

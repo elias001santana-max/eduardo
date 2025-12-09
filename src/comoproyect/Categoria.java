@@ -8,17 +8,19 @@ public class Categoria {
     private String nombre;
     private String descripcion;
     private String producto;
+    private int stock;
     
     // Constructor vacío
     public Categoria() {
     }
     
     // Constructor con todos los campos
-    public Categoria(int id, String nombre, String descripcion, String producto) {
+    public Categoria(int id, String nombre, String descripcion, String producto, int stock) {
         this.id = id;
         this.nombre = nombre;
         this.descripcion = descripcion;
         this.producto = producto;
+        this.stock = stock;
     }
     
     // Getters y Setters
@@ -53,6 +55,14 @@ public class Categoria {
     public void setProducto(String producto) {
         this.producto = producto;
     }
+
+    public int getStock() {
+        return stock;
+    }
+
+    public void setStock(int stock) {
+        this.stock = stock;
+    }
     
     @Override
     public String toString() {
@@ -61,6 +71,7 @@ public class Categoria {
                 ", nombre='" + nombre + '\'' +
                 ", descripcion='" + descripcion + '\'' +
                 ", producto='" + producto + '\'' +
+                ", stock=" + stock +
                 '}';
     }
 }

@@ -167,7 +167,8 @@ public class Tod {
         frame.getContentPane().setBackground(BG_COLOR);
         
         // ==================== ATAJOS DE TECLADO GLOBALES ====================
-        // F3 = Producto, F4 = Empleado, F5 = Cliente, F6 = Ventas, F7 = Categoría, F8 = Configuración, F12 = Finalizar Venta
+        // F3 = Producto, F4 = Empleado, F5 = Cliente, F6 = Ventas, F7 = Categoría, F8 = Configuración
+        // F10 = Buscar Productos, F12 = Finalizar Venta
         // Flecha Arriba = Incrementar cantidad en carrito, Flecha Abajo = Decrementar cantidad en carrito
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(new KeyEventDispatcher() {
             @Override
@@ -194,6 +195,9 @@ public class Tod {
                             return true;
                         case KeyEvent.VK_F12:
                             finalizarVenta();
+                            return true;
+                        case KeyEvent.VK_F10:
+                            mostrarDialogoBusqueda();
                             return true;
                         case KeyEvent.VK_UP:
                             incrementarCantidadCarrito();
@@ -2846,6 +2850,16 @@ public class Tod {
         btnVaciarCarrito.addActionListener(e -> vaciarCarrito());
         mainContent.add(btnVaciarCarrito);
         
+        // Botón Buscar Productos
+        JButton btnBuscarProductos = new JButton("🔍 Buscar");
+        btnBuscarProductos.setBounds(250, 520, 180, 40);
+        btnBuscarProductos.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        btnBuscarProductos.setBackground(new Color(59, 130, 246));
+        btnBuscarProductos.setForeground(Color.WHITE);
+        btnBuscarProductos.setFocusPainted(false);
+        btnBuscarProductos.addActionListener(e -> mostrarDialogoBusqueda());
+        mainContent.add(btnBuscarProductos);
+        
         mainContent.revalidate();
         mainContent.repaint();
         
@@ -4779,7 +4793,298 @@ private void actualizarStockCategoria(String idProducto, int cantidadReducir) {
         System.err.println("❌ Error actualizando stock de categoría: " + e.getMessage());
         e.printStackTrace();
     }
-}
+    }
+    
+    /**
+     * Muestra un diálogo de búsqueda de productos con filtros
+     */
+    private void mostrarDialogoBusqueda() {
+        // Crear diálogo personalizado
+        JDialog dialogoBusqueda = new JDialog(frame, "Buscar Productos", true);
+        dialogoBusqueda.setSize(900, 600);
+        dialogoBusqueda.setLocationRelativeTo(frame);
+        dialogoBusqueda.setLayout(null);
+        dialogoBusqueda.getContentPane().setBackground(BG_COLOR);
+        
+        // Título
+        JLabel lblTitulo = new JLabel("Buscar Productos");
+        lblTitulo.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        lblTitulo.setForeground(TEXT_DARK);
+        lblTitulo.setBounds(30, 20, 300, 35);
+        dialogoBusqueda.add(lblTitulo);
+        
+        // Panel de búsqueda
+        JPanel panelBusqueda = new JPanel();
+        panelBusqueda.setBackground(CARD_COLOR);
+        panelBusqueda.setBounds(30, 70, 840, 80);
+        panelBusqueda.setBorder(new RoundBorder(15, Color.LIGHT_GRAY));
+        panelBusqueda.setLayout(null);
+        dialogoBusqueda.add(panelBusqueda);
+        
+        JLabel lblBuscar = new JLabel("Nombre del producto:");
+        lblBuscar.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        lblBuscar.setBounds(20, 15, 200, 25);
+        panelBusqueda.add(lblBuscar);
+        
+        JTextField txtBuscar = new JTextField();
+        txtBuscar.setBounds(20, 40, 500, 30);
+        txtBuscar.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        panelBusqueda.add(txtBuscar);
+        
+        JButton btnBuscar = new JButton("Buscar");
+        btnBuscar.setBounds(540, 40, 120, 30);
+        btnBuscar.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        btnBuscar.setBackground(PRIMARY_COLOR);
+        btnBuscar.setForeground(Color.WHITE);
+        btnBuscar.setFocusPainted(false);
+        panelBusqueda.add(btnBuscar);
+        
+        JButton btnMostrarTodos = new JButton("Mostrar Todos");
+        btnMostrarTodos.setBounds(680, 40, 140, 30);
+        btnMostrarTodos.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        btnMostrarTodos.setBackground(new Color(100, 116, 139));
+        btnMostrarTodos.setForeground(Color.WHITE);
+        btnMostrarTodos.setFocusPainted(false);
+        panelBusqueda.add(btnMostrarTodos);
+        
+        // Tabla de resultados
+        DefaultTableModel modeloResultados = new DefaultTableModel();
+        modeloResultados.addColumn("ID");
+        modeloResultados.addColumn("Nombre");
+        modeloResultados.addColumn("Precio");
+        modeloResultados.addColumn("Categoría");
+        modeloResultados.addColumn("Descripción");
+        
+        JTable tablaResultados = new JTable(modeloResultados);
+        tablaResultados.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        tablaResultados.setRowHeight(30);
+        tablaResultados.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 14));
+        tablaResultados.getTableHeader().setBackground(new Color(16, 185, 129));
+        tablaResultados.getTableHeader().setForeground(Color.WHITE);
+        
+        JScrollPane scrollResultados = new JScrollPane(tablaResultados);
+        scrollResultados.setBounds(30, 170, 840, 320);
+        scrollResultados.setBorder(new RoundBorder(15, Color.LIGHT_GRAY));
+        dialogoBusqueda.add(scrollResultados);
+        
+        // Listener para doble clic en la tabla
+        tablaResultados.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int fila = tablaResultados.getSelectedRow();
+                    if (fila >= 0) {
+                        // Agregar producto al carrito
+                        String id = modeloResultados.getValueAt(fila, 0).toString();
+                        String nombre = modeloResultados.getValueAt(fila, 1).toString();
+                        String precio = modeloResultados.getValueAt(fila, 2).toString();
+                        
+                        // Verificar si el producto ya está en el carrito
+                        boolean encontrado = false;
+                        for (int i = 0; i < modeloCarrito.getRowCount(); i++) {
+                            if (modeloCarrito.getValueAt(i, 0).toString().equals(id)) {
+                                // Incrementar cantidad
+                                int cantidadActual = Integer.parseInt(modeloCarrito.getValueAt(i, 3).toString());
+                                int nuevaCantidad = cantidadActual + 1;
+                                double precioUnitario = Double.parseDouble(precio);
+                                double nuevoSubtotal = precioUnitario * nuevaCantidad;
+                                
+                                modeloCarrito.setValueAt(nuevaCantidad, i, 3);
+                                modeloCarrito.setValueAt(String.format("%.2f", nuevoSubtotal), i, 4);
+                                encontrado = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!encontrado) {
+                            // Agregar nuevo producto
+                            double precioUnitario = Double.parseDouble(precio);
+                            modeloCarrito.addRow(new Object[]{
+                                id, nombre, precio, "1", String.format("%.2f", precioUnitario)
+                            });
+                        }
+                        
+                        actualizarTotal();
+                        JOptionPane.showMessageDialog(dialogoBusqueda, 
+                            "Producto '" + nombre + "' agregado al carrito", 
+                            "Éxito", 
+                            JOptionPane.INFORMATION_MESSAGE);
+                    }
+                }
+            }
+        });
+        
+        // Botón buscar
+        btnBuscar.addActionListener(e -> {
+            String criterio = txtBuscar.getText().trim();
+            buscarProductosPorFiltro(criterio, modeloResultados);
+        });
+        
+        // Agregar listener para búsqueda automática mientras se escribe
+        txtBuscar.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override
+            public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                buscarAutomaticamente();
+            }
+            
+            @Override
+            public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                buscarAutomaticamente();
+            }
+            
+            @Override
+            public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                buscarAutomaticamente();
+            }
+            
+            private void buscarAutomaticamente() {
+                String criterio = txtBuscar.getText().trim();
+                buscarProductosPorFiltro(criterio, modeloResultados);
+            }
+        });
+        
+        // Botón mostrar todos
+        btnMostrarTodos.addActionListener(e -> {
+            txtBuscar.setText("");
+            buscarProductosPorFiltro("", modeloResultados);
+        });
+        
+        // Botón agregar seleccionado
+        JButton btnAgregarSeleccionado = new JButton("Agregar al Carrito");
+        btnAgregarSeleccionado.setBounds(550, 510, 180, 40);
+        btnAgregarSeleccionado.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        btnAgregarSeleccionado.setBackground(new Color(16, 185, 129));
+        btnAgregarSeleccionado.setForeground(Color.WHITE);
+        btnAgregarSeleccionado.setFocusPainted(false);
+        btnAgregarSeleccionado.addActionListener(e -> {
+            int fila = tablaResultados.getSelectedRow();
+            if (fila >= 0) {
+                String id = modeloResultados.getValueAt(fila, 0).toString();
+                String nombre = modeloResultados.getValueAt(fila, 1).toString();
+                String precio = modeloResultados.getValueAt(fila, 2).toString();
+                
+                // Verificar si el producto ya está en el carrito
+                boolean encontrado = false;
+                for (int i = 0; i < modeloCarrito.getRowCount(); i++) {
+                    if (modeloCarrito.getValueAt(i, 0).toString().equals(id)) {
+                        // Incrementar cantidad
+                        int cantidadActual = Integer.parseInt(modeloCarrito.getValueAt(i, 3).toString());
+                        int nuevaCantidad = cantidadActual + 1;
+                        double precioUnitario = Double.parseDouble(precio);
+                        double nuevoSubtotal = precioUnitario * nuevaCantidad;
+                        
+                        modeloCarrito.setValueAt(nuevaCantidad, i, 3);
+                        modeloCarrito.setValueAt(String.format("%.2f", nuevoSubtotal), i, 4);
+                        encontrado = true;
+                        break;
+                    }
+                }
+                
+                if (!encontrado) {
+                    // Agregar nuevo producto
+                    double precioUnitario = Double.parseDouble(precio);
+                    modeloCarrito.addRow(new Object[]{
+                        id, nombre, precio, "1", String.format("%.2f", precioUnitario)
+                    });
+                }
+                
+                actualizarTotal();
+                JOptionPane.showMessageDialog(dialogoBusqueda, 
+                    "Producto '" + nombre + "' agregado al carrito", 
+                    "Éxito", 
+                    JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(dialogoBusqueda, 
+                    "Seleccione un producto de la lista", 
+                    "Advertencia", 
+                    JOptionPane.WARNING_MESSAGE);
+            }
+        });
+        dialogoBusqueda.add(btnAgregarSeleccionado);
+        
+        // Botón cerrar
+        JButton btnCerrar = new JButton("Cerrar");
+        btnCerrar.setBounds(750, 510, 120, 40);
+        btnCerrar.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        btnCerrar.setBackground(new Color(239, 68, 68));
+        btnCerrar.setForeground(Color.WHITE);
+        btnCerrar.setFocusPainted(false);
+        btnCerrar.addActionListener(e -> dialogoBusqueda.dispose());
+        dialogoBusqueda.add(btnCerrar);
+        
+        // Cargar todos los productos al abrir
+        buscarProductosPorFiltro("", modeloResultados);
+        
+        dialogoBusqueda.setVisible(true);
+    }
+    
+    /**
+     * Busca productos en la base de datos según el criterio de búsqueda
+     * @param criterio Texto a buscar en el nombre del producto
+     * @param modelo Modelo de tabla donde se mostrarán los resultados
+     */
+    private void buscarProductosPorFiltro(String criterio, DefaultTableModel modelo) {
+        try {
+            Connection conn = Conexion.getInstancia().getConnection();
+            String sql;
+            java.sql.PreparedStatement pst;
+            
+            if (criterio == null || criterio.trim().isEmpty()) {
+                // Mostrar todos los productos
+                sql = "SELECT p.id, p.nombre, p.precio, c.nombre AS categoria, p.descripcion " +
+                      "FROM productos p " +
+                      "LEFT JOIN categorias c ON p.id_categoria = c.id " +
+                      "ORDER BY p.nombre";
+                pst = conn.prepareStatement(sql);
+            } else {
+                // Buscar productos con nombre similar
+                sql = "SELECT p.id, p.nombre, p.precio, c.nombre AS categoria, p.descripcion " +
+                      "FROM productos p " +
+                      "LEFT JOIN categorias c ON p.id_categoria = c.id " +
+                      "WHERE p.nombre LIKE ? " +
+                      "ORDER BY p.nombre";
+                pst = conn.prepareStatement(sql);
+                pst.setString(1, "%" + criterio + "%");
+            }
+            
+            java.sql.ResultSet rs = pst.executeQuery();
+            
+            // Limpiar tabla
+            modelo.setRowCount(0);
+            
+            int contador = 0;
+            while (rs.next()) {
+                Vector<String> fila = new Vector<>();
+                fila.add(String.valueOf(rs.getInt("id")));
+                fila.add(rs.getString("nombre"));
+                fila.add(String.format("%.2f", rs.getDouble("precio")));
+                fila.add(rs.getString("categoria") != null ? rs.getString("categoria") : "Sin categoría");
+                fila.add(rs.getString("descripcion") != null ? rs.getString("descripcion") : "");
+                modelo.addRow(fila);
+                contador++;
+            }
+            
+            rs.close();
+            pst.close();
+            
+            System.out.println("✅ Búsqueda completada: " + contador + " productos encontrados");
+            
+            if (contador == 0) {
+                JOptionPane.showMessageDialog(frame, 
+                    "No se encontraron productos con el criterio: " + criterio, 
+                    "Sin resultados", 
+                    JOptionPane.INFORMATION_MESSAGE);
+            }
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error buscando productos: " + e.getMessage());
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(frame, 
+                "Error al buscar productos: " + e.getMessage(), 
+                "Error", 
+                JOptionPane.ERROR_MESSAGE);
+        }
+    }
     
     public static void main(String[] args) {
         EventQueue.invokeLater(() -> {

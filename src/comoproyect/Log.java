@@ -63,7 +63,10 @@ public class Log {
             stmt.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS categorias (
                     id INT AUTO_INCREMENT PRIMARY KEY,
-                    nombre VARCHAR(50) NOT NULL)
+                    nombre VARCHAR(50) NOT NULL,
+                    descripcion VARCHAR(255),
+                    producto VARCHAR(255),
+                    stock INT DEFAULT 0)
                     """);
 
             // TABLA PRODUCTOS

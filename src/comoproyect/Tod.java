@@ -4027,9 +4027,21 @@ public class Tod {
         btnGuardar.setFocusPainted(false);
         btnGuardar.setCursor(new Cursor(Cursor.HAND_CURSOR));
         btnGuardar.addActionListener(e -> {
+            // 🔧 DETENER EDICIÓN DE CELDA antes de guardar
+            if (tablaStock.isEditing()) {
+                tablaStock.getCellEditor().stopCellEditing();
+            }
+            
             // Guardar cambios en la base de datos
             try {
                 Connection conn = Conexion.getInstancia().getConnection();
+                
+                // 🔧 DESACTIVAR autocommit para hacer commit manual
+                boolean autoCommitOriginal = conn.getAutoCommit();
+                conn.setAutoCommit(false);
+                
+                int cambiosGuardados = 0;
+                
                 for (int i = 0; i < modelStock.getRowCount(); i++) {
                     int id = (int) modelStock.getValueAt(i, 0);
                     int nuevoStock = Integer.parseInt(modelStock.getValueAt(i, 3).toString());
@@ -4038,8 +4050,13 @@ public class Tod {
                     java.sql.PreparedStatement pst = conn.prepareStatement(sql);
                     pst.setInt(1, nuevoStock);
                     pst.setInt(2, id);
-                    pst.executeUpdate();
+                    int filasActualizadas = pst.executeUpdate();
                     pst.close();
+                    
+                    if (filasActualizadas > 0) {
+                        cambiosGuardados++;
+                        System.out.println("✅ Stock actualizado - ID: " + id + ", Nuevo Stock: " + nuevoStock);
+                    }
                     
                     // Actualizar también en la tabla visual de categorías si está cargada
                     if (modeloCategorias != null) {
@@ -4052,12 +4069,30 @@ public class Tod {
                     }
                 }
                 
+                // 🔧 COMMIT EXPLÍCITO para asegurar que se guarden los cambios
+                conn.commit();
+                
+                // 🔧 RESTAURAR autocommit original
+                conn.setAutoCommit(autoCommitOriginal);
+                
                 JOptionPane.showMessageDialog(dialog, 
-                    "Stock actualizado exitosamente", 
+                    "Stock actualizado exitosamente\n" + 
+                    cambiosGuardados + " categoría(s) actualizada(s) en la base de datos", 
                     "Éxito", 
                     JOptionPane.INFORMATION_MESSAGE);
+                
+                System.out.println("✅ " + cambiosGuardados + " cambios guardados y confirmados en la base de datos");
                 // NO cerrar el diálogo para que se pueda seguir usando
             } catch (Exception ex) {
+                // 🔧 ROLLBACK en caso de error
+                try {
+                    Connection conn = Conexion.getInstancia().getConnection();
+                    conn.rollback();
+                    System.err.println("❌ Error al guardar, cambios revertidos");
+                } catch (Exception rollbackEx) {
+                    System.err.println("❌ Error al hacer rollback: " + rollbackEx.getMessage());
+                }
+                
                 JOptionPane.showMessageDialog(dialog, 
                     "Error al guardar: " + ex.getMessage(), 
                     "Error", 

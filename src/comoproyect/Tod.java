@@ -24,7 +24,7 @@ public class Tod {
     // Componentes de la tabla de usuarios
     private DefaultTableModel modeloUsuarios;
     private JTable tablaUsuarios;
-    private JTextField txtIdUsuario, txtNombreUsuario, txtApellidoUsuario, txtEmailUsuario, txtCargoUsuario, txtTelefonoUsuario, txtEstadoUsuario;
+    private JTextField txtIdUsuario, txtNombreUsuario, txtApellidoUsuario, txtEmailUsuario, txtCargoUsuario, txtTelefonoUsuario;
     
     // Componentes de la tabla de productos
     private DefaultTableModel modeloProductos;
@@ -126,7 +126,6 @@ public class Tod {
         modeloUsuarios.addColumn("Email");
         modeloUsuarios.addColumn("Cargo");
         modeloUsuarios.addColumn("Teléfono");
-        modeloUsuarios.addColumn("Estado");
         
         // Inicializar modelo de Clientes para sincronización automática
         modeloClientes = new DefaultTableModel();
@@ -243,7 +242,7 @@ public class Tod {
         sidebar.add(lblRole);
 
         // Menú lateral (sin Dashboard)
-        String[] menuItems = {"Producto", "Empleado", "Cliente", "Ventas", "Categoría", "Configuración"};
+        String[] menuItems = {"Producto (F3)", "Empleado (F4)", "Cliente (F5)", "Ventas (F6)", "Categoría (F7)", "Configuración (F8)"};
 
         int yPos = 190;
         for (int i = 0; i < menuItems.length; i++) {
@@ -258,17 +257,17 @@ public class Tod {
                 public void mouseClicked(MouseEvent e) {
                     if (itemName.equals("Dashboard")) {
                         mostrarPanelDashboard();
-                    } else if (itemName.equals("Producto")) {
+                    } else if (itemName.startsWith("Producto")) {
                         mostrarPanelProductos();
-                    } else if (itemName.equals("Empleado")) {
+                    } else if (itemName.startsWith("Empleado")) {
                         mostrarPanelUsuarios();
-                    } else if (itemName.equals("Cliente")) {
+                    } else if (itemName.startsWith("Cliente")) {
                         mostrarPanelClientes();
-                    } else if (itemName.equals("Ventas")) {
+                    } else if (itemName.startsWith("Ventas")) {
                         mostrarPanelVentas();
-                    } else if (itemName.equals("Categoría")) {
+                    } else if (itemName.startsWith("Categoría")) {
                         mostrarPanelCategorias();
-                    } else if (itemName.equals("Configuración")) {
+                    } else if (itemName.startsWith("Configuración")) {
                         mostrarPanelConfiguracion();
                     }
                 }
@@ -336,6 +335,7 @@ public class Tod {
         btnCerrar.setBackground(new Color(239, 68, 68));
         btnCerrar.setForeground(Color.WHITE);
         btnCerrar.setFocusPainted(false);
+        btnCerrar.addActionListener(e -> frame.dispose());
         mainContent.add(btnCerrar);
         
         // Panel de formulario (extendido)
@@ -443,15 +443,6 @@ public class Tod {
         txtTelefonoUsuario.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         formPanel.add(txtTelefonoUsuario);
         
-        JLabel lblEstado = new JLabel("Estado:");
-        lblEstado.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        lblEstado.setBounds(510, 95, 80, 25);
-        formPanel.add(lblEstado);
-        
-        txtEstadoUsuario = new JTextField();
-        txtEstadoUsuario.setBounds(510, 120, 150, 35);
-        txtEstadoUsuario.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        formPanel.add(txtEstadoUsuario);
         
         // Panel de botones
         JPanel buttonPanel = new JPanel();
@@ -527,7 +518,6 @@ public class Tod {
                     txtEmailUsuario.setText(tablaUsuarios.getValueAt(fila, 3).toString());
                     txtCargoUsuario.setText(tablaUsuarios.getValueAt(fila, 4).toString());
                     txtTelefonoUsuario.setText(tablaUsuarios.getValueAt(fila, 5).toString());
-                    txtEstadoUsuario.setText(tablaUsuarios.getValueAt(fila, 6).toString());
                 }
             }
         });
@@ -561,18 +551,16 @@ public class Tod {
                 String email = txtEmailUsuario.getText();
                 String cargo = txtCargoUsuario.getText();
                 String telefono = txtTelefonoUsuario.getText();
-                String estado = txtEstadoUsuario.getText();
                 
                 // Insertar en la base de datos
                 Connection conn = Conexion.getInstancia().getConnection();
-                String sql = "INSERT INTO empleados (nombre, apellido, email, cargo, telefono, estado) VALUES (?, ?, ?, ?, ?, ?)";
+                String sql = "INSERT INTO empleados (nombre, apellido, email, cargo, telefono) VALUES (?, ?, ?, ?, ?)";
                 java.sql.PreparedStatement pst = conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS);
                 pst.setString(1, nombre);
                 pst.setString(2, apellido);
                 pst.setString(3, email);
                 pst.setString(4, cargo);
                 pst.setString(5, telefono);
-                pst.setString(6, estado);
                 
                 int filasAfectadas = pst.executeUpdate();
                 
@@ -592,7 +580,6 @@ public class Tod {
                     fila.add(email);
                     fila.add(cargo);
                     fila.add(telefono);
-                    fila.add(estado);
                     modeloUsuarios.addRow(fila);
                     
                     // 🔄 SINCRONIZACIÓN AUTOMÁTICA
@@ -628,21 +615,46 @@ public class Tod {
                     String email = txtEmailUsuario.getText();
                     String cargo = txtCargoUsuario.getText();
                     String telefono = txtTelefonoUsuario.getText();
-                    String estado = txtEstadoUsuario.getText();
                     
-                    // Actualizar en la base de datos
                     Connection conn = Conexion.getInstancia().getConnection();
-                    String sql = "UPDATE empleados SET nombre=?, apellido=?, email=?, cargo=?, telefono=?, estado=? WHERE id=?";
-                    java.sql.PreparedStatement pst = conn.prepareStatement(sql);
-                    pst.setString(1, nombre);
-                    pst.setString(2, apellido);
-                    pst.setString(3, email);
-                    pst.setString(4, cargo);
-                    pst.setString(5, telefono);
-                    pst.setString(6, estado);
-                    pst.setInt(7, id);
                     
-                    int filasAfectadas = pst.executeUpdate();
+                    // Primero verificar si el registro existe en la base de datos
+                    String sqlCheck = "SELECT COUNT(*) FROM empleados WHERE id=?";
+                    java.sql.PreparedStatement pstCheck = conn.prepareStatement(sqlCheck);
+                    pstCheck.setInt(1, id);
+                    java.sql.ResultSet rsCheck = pstCheck.executeQuery();
+                    rsCheck.next();
+                    int count = rsCheck.getInt(1);
+                    rsCheck.close();
+                    pstCheck.close();
+                    
+                    int filasAfectadas = 0;
+                    
+                    if (count > 0) {
+                        // El registro existe - ACTUALIZAR
+                        String sql = "UPDATE empleados SET nombre=?, apellido=?, email=?, cargo=?, telefono=? WHERE id=?";
+                        java.sql.PreparedStatement pst = conn.prepareStatement(sql);
+                        pst.setString(1, nombre);
+                        pst.setString(2, apellido);
+                        pst.setString(3, email);
+                        pst.setString(4, cargo);
+                        pst.setString(5, telefono);
+                        pst.setInt(6, id);
+                        filasAfectadas = pst.executeUpdate();
+                        pst.close();
+                    } else {
+                        // El registro NO existe - INSERTAR con el ID específico
+                        String sql = "INSERT INTO empleados (id, nombre, apellido, email, cargo, telefono) VALUES (?, ?, ?, ?, ?, ?)";
+                        java.sql.PreparedStatement pst = conn.prepareStatement(sql);
+                        pst.setInt(1, id);
+                        pst.setString(2, nombre);
+                        pst.setString(3, apellido);
+                        pst.setString(4, email);
+                        pst.setString(5, cargo);
+                        pst.setString(6, telefono);
+                        filasAfectadas = pst.executeUpdate();
+                        pst.close();
+                    }
                     
                     if (filasAfectadas > 0) {
                         // Actualizar en la tabla visual
@@ -652,13 +664,13 @@ public class Tod {
                         modeloUsuarios.setValueAt(email, fila, 3);
                         modeloUsuarios.setValueAt(cargo, fila, 4);
                         modeloUsuarios.setValueAt(telefono, fila, 5);
-                        modeloUsuarios.setValueAt(estado, fila, 6);
                         
                         limpiarCampos();
-                        JOptionPane.showMessageDialog(frame, "Usuario actualizado exitosamente", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                        JOptionPane.showMessageDialog(frame, 
+                            "Empleado " + (count > 0 ? "actualizado" : "guardado") + " exitosamente en la base de datos", 
+                            "Éxito", JOptionPane.INFORMATION_MESSAGE);
                     }
                     
-                    pst.close();
                 } catch (Exception e) {
                     JOptionPane.showMessageDialog(frame, 
                         "Error al actualizar usuario: " + e.getMessage(), 
@@ -717,7 +729,6 @@ public class Tod {
         txtEmailUsuario.setText("");
         txtCargoUsuario.setText("");
         txtTelefonoUsuario.setText("");
-        txtEstadoUsuario.setText("");
         tablaUsuarios.clearSelection();
     }
     
@@ -726,8 +737,7 @@ public class Tod {
             txtApellidoUsuario.getText().trim().isEmpty() || 
             txtEmailUsuario.getText().trim().isEmpty() || 
             txtCargoUsuario.getText().trim().isEmpty() || 
-            txtTelefonoUsuario.getText().trim().isEmpty() || 
-            txtEstadoUsuario.getText().trim().isEmpty()) {
+            txtTelefonoUsuario.getText().trim().isEmpty()) {
             JOptionPane.showMessageDialog(frame, "Todos los campos son obligatorios", "Error", JOptionPane.ERROR_MESSAGE);
             return false;
         }
@@ -1587,17 +1597,78 @@ public class Tod {
             return;
         }
         
-        // Actualizar fila en la tabla
-        modeloClientes.setValueAt(txtNombreCliente.getText().trim(), filaSeleccionada, 1);
-        modeloClientes.setValueAt(txtApellidoCliente.getText().trim(), filaSeleccionada, 2);
-        modeloClientes.setValueAt(txtTelefonoCliente.getText().trim(), filaSeleccionada, 3);
-        modeloClientes.setValueAt(txtEmailCliente.getText().trim(), filaSeleccionada, 4);
-        modeloClientes.setValueAt(txtDireccionCliente.getText().trim(), filaSeleccionada, 5);
-        modeloClientes.setValueAt(txtCiudadCliente.getText().trim(), filaSeleccionada, 6);
-        
-        JOptionPane.showMessageDialog(frame, 
-            "Cliente actualizado exitosamente", 
-            "Éxito", JOptionPane.INFORMATION_MESSAGE);
+        try {
+            int id = Integer.parseInt(txtIdCliente.getText());
+            String nombre = txtNombreCliente.getText().trim();
+            String apellido = txtApellidoCliente.getText().trim();
+            String telefono = txtTelefonoCliente.getText().trim();
+            String email = txtEmailCliente.getText().trim();
+            String direccion = txtDireccionCliente.getText().trim();
+            String ciudad = txtCiudadCliente.getText().trim();
+            
+            Connection conn = Conexion.getInstancia().getConnection();
+            
+            // Primero verificar si el registro existe en la base de datos
+            String sqlCheck = "SELECT COUNT(*) FROM clientes WHERE id=?";
+            java.sql.PreparedStatement pstCheck = conn.prepareStatement(sqlCheck);
+            pstCheck.setInt(1, id);
+            java.sql.ResultSet rsCheck = pstCheck.executeQuery();
+            rsCheck.next();
+            int count = rsCheck.getInt(1);
+            rsCheck.close();
+            pstCheck.close();
+            
+            int filasAfectadas = 0;
+            
+            if (count > 0) {
+                // El registro existe - ACTUALIZAR
+                String sql = "UPDATE clientes SET nombre=?, apellido=?, telefono=?, email=?, direccion=?, ciudad=? WHERE id=?";
+                java.sql.PreparedStatement pst = conn.prepareStatement(sql);
+                pst.setString(1, nombre);
+                pst.setString(2, apellido);
+                pst.setString(3, telefono);
+                pst.setString(4, email);
+                pst.setString(5, direccion);
+                pst.setString(6, ciudad);
+                pst.setInt(7, id);
+                filasAfectadas = pst.executeUpdate();
+                pst.close();
+            } else {
+                // El registro NO existe - INSERTAR con el ID específico
+                String sql = "INSERT INTO clientes (id, nombre, apellido, telefono, email, direccion, ciudad) VALUES (?, ?, ?, ?, ?, ?, ?)";
+                java.sql.PreparedStatement pst = conn.prepareStatement(sql);
+                pst.setInt(1, id);
+                pst.setString(2, nombre);
+                pst.setString(3, apellido);
+                pst.setString(4, telefono);
+                pst.setString(5, email);
+                pst.setString(6, direccion);
+                pst.setString(7, ciudad);
+                filasAfectadas = pst.executeUpdate();
+                pst.close();
+            }
+            
+            if (filasAfectadas > 0) {
+                // Actualizar fila en la tabla visual
+                modeloClientes.setValueAt(nombre, filaSeleccionada, 1);
+                modeloClientes.setValueAt(apellido, filaSeleccionada, 2);
+                modeloClientes.setValueAt(telefono, filaSeleccionada, 3);
+                modeloClientes.setValueAt(email, filaSeleccionada, 4);
+                modeloClientes.setValueAt(direccion, filaSeleccionada, 5);
+                modeloClientes.setValueAt(ciudad, filaSeleccionada, 6);
+                
+                limpiarCamposCliente();
+                JOptionPane.showMessageDialog(frame, 
+                    "Cliente " + (count > 0 ? "actualizado" : "guardado") + " exitosamente en la base de datos", 
+                    "Éxito", JOptionPane.INFORMATION_MESSAGE);
+            }
+            
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(frame, 
+                "Error al actualizar cliente: " + e.getMessage(), 
+                "Error", JOptionPane.ERROR_MESSAGE);
+            e.printStackTrace();
+        }
     }
     
     private void eliminarCliente() {
@@ -1702,10 +1773,13 @@ public class Tod {
         tablaProductosDisponibles.getTableHeader().setBackground(new Color(16, 185, 129));
         tablaProductosDisponibles.getTableHeader().setForeground(Color.WHITE);
         
+        // ❌ TABLA DE PRODUCTOS DISPONIBLES OCULTADA
+        /*
         JScrollPane scrollProductos = new JScrollPane(tablaProductosDisponibles);
         scrollProductos.setBounds(30, 120, 420, 400);
         scrollProductos.setBorder(new RoundBorder(15, Color.LIGHT_GRAY));
         mainContent.add(scrollProductos);
+        */
         
         // Botones de acción en el medio
         JButton btnAgregarCarrito = new JButton("Agregar ►");
@@ -1904,27 +1978,6 @@ public class Tod {
             calcularTotal();
         } else {
             JOptionPane.showMessageDialog(frame, "Seleccione un producto del carrito", "Advertencia", JOptionPane.WARNING_MESSAGE);
-        }
-    }
-    
-    private void vaciarCarrito() {
-        if (modeloProductosDisponibles != null && modeloProductosDisponibles.getRowCount() > 0) {
-            int confirmacion = JOptionPane.showConfirmDialog(frame, 
-                "¿Está seguro de vaciar los productos disponibles?", 
-                "Confirmar", 
-                JOptionPane.YES_NO_OPTION);
-            if (confirmacion == JOptionPane.YES_OPTION) {
-                modeloProductosDisponibles.setRowCount(0);
-                JOptionPane.showMessageDialog(frame, 
-                    "Productos disponibles vaciados exitosamente", 
-                    "Éxito", 
-                    JOptionPane.INFORMATION_MESSAGE);
-            }
-        } else {
-            JOptionPane.showMessageDialog(frame, 
-                "No hay productos disponibles para vaciar", 
-                "Información", 
-                JOptionPane.INFORMATION_MESSAGE);
         }
     }
     
@@ -2694,50 +2747,11 @@ public class Tod {
         }
         mainContent.add(lblNombreTiendaDisplay);
         
-        // ========== TABLA DE PRODUCTOS DISPONIBLES (IZQUIERDA) ==========
-        JLabel lblProductosDisponibles = new JLabel("Productos Disponibles");
-        lblProductosDisponibles.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        lblProductosDisponibles.setForeground(TEXT_DARK);
-        lblProductosDisponibles.setBounds(30, 80, 300, 30);
-        mainContent.add(lblProductosDisponibles);
-        
-        // La tabla usa el modelo que ya inicializamos en el constructor
-        tablaProductosDisponibles = new JTable(modeloProductosDisponibles);
-        tablaProductosDisponibles.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        tablaProductosDisponibles.setRowHeight(30);
-        tablaProductosDisponibles.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 14));
-        tablaProductosDisponibles.getTableHeader().setBackground(new Color(16, 185, 129));
-        tablaProductosDisponibles.getTableHeader().setForeground(Color.WHITE);
-        
-        JScrollPane scrollProductos = new JScrollPane(tablaProductosDisponibles);
-        scrollProductos.setBounds(30, 120, 400, 380);
-        scrollProductos.setBorder(new RoundBorder(15, Color.LIGHT_GRAY));
-        mainContent.add(scrollProductos);
-        
-        // ========== BOTONES CENTRALES ==========
-        JButton btnAgregar = new JButton("Agregar →");
-        btnAgregar.setBounds(450, 250, 140, 45);
-        btnAgregar.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        btnAgregar.setBackground(new Color(59, 130, 246));
-        btnAgregar.setForeground(Color.WHITE);
-        btnAgregar.setFocusPainted(false);
-        btnAgregar.addActionListener(e -> agregarProductoAlCarrito());
-        mainContent.add(btnAgregar);
-        
-        JButton btnQuitar = new JButton("← Quitar");
-        btnQuitar.setBounds(450, 310, 140, 45);
-        btnQuitar.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        btnQuitar.setBackground(new Color(239, 68, 68));
-        btnQuitar.setForeground(Color.WHITE);
-        btnQuitar.setFocusPainted(false);
-        btnQuitar.addActionListener(e -> quitarProductoDelCarrito());
-        mainContent.add(btnQuitar);
-        
-        // ========== TABLA DE CARRITO (DERECHA) ==========
+        // ========== TABLA DE CARRITO ==========
         JLabel lblCarrito = new JLabel("Carrito de Compra");
         lblCarrito.setFont(new Font("Segoe UI", Font.BOLD, 18));
         lblCarrito.setForeground(TEXT_DARK);
-        lblCarrito.setBounds(610, 80, 300, 30);
+        lblCarrito.setBounds(30, 80, 300, 30);
         mainContent.add(lblCarrito);
         
         // La tabla usa el modelo que ya inicializamos en el constructor
@@ -2814,7 +2828,7 @@ public class Tod {
         });
         
         JScrollPane scrollCarrito = new JScrollPane(tablaCarrito);
-        scrollCarrito.setBounds(610, 120, 310, 280);
+        scrollCarrito.setBounds(30, 120, 890, 280);
         scrollCarrito.setBorder(new RoundBorder(15, Color.LIGHT_GRAY));
         mainContent.add(scrollCarrito);
 
@@ -2823,7 +2837,7 @@ public class Tod {
         JLabel lblTotalTexto = new JLabel("TOTAL:");
         lblTotalTexto.setFont(new Font("Segoe UI", Font.BOLD, 20));
         lblTotalTexto.setForeground(TEXT_DARK);
-        lblTotalTexto.setBounds(610, 420, 100, 30);
+        lblTotalTexto.setBounds(640, 420, 100, 30);
         mainContent.add(lblTotalTexto);
         
         lblTotal = new JLabel("$0.00");
@@ -2832,8 +2846,8 @@ public class Tod {
         lblTotal.setBounds(750, 410, 170, 40);
         mainContent.add(lblTotal);
         
-        JButton btnFinalizarVenta = new JButton("Finalizar Venta");
-        btnFinalizarVenta.setBounds(610, 470, 310, 50);
+        JButton btnFinalizarVenta = new JButton("Finalizar Venta (F12)");
+        btnFinalizarVenta.setBounds(560, 470, 360, 50);
         btnFinalizarVenta.setFont(new Font("Segoe UI", Font.BOLD, 16));
         btnFinalizarVenta.setBackground(new Color(16, 185, 129));
         btnFinalizarVenta.setForeground(Color.WHITE);
@@ -2851,7 +2865,7 @@ public class Tod {
         mainContent.add(btnVaciarCarrito);
         
         // Botón Buscar Productos
-        JButton btnBuscarProductos = new JButton("🔍 Buscar");
+        JButton btnBuscarProductos = new JButton("🔍 Buscar (F10)");
         btnBuscarProductos.setBounds(250, 520, 180, 40);
         btnBuscarProductos.setFont(new Font("Segoe UI", Font.BOLD, 14));
         btnBuscarProductos.setBackground(new Color(59, 130, 246));
@@ -3176,24 +3190,14 @@ public class Tod {
                 mensaje.append(String.format("  Dirección: %s\n", direccion));
                 mensaje.append(String.format("  Ciudad: %s\n", ciudad));
             }
-        } else {
-            mensaje.append("  No hay clientes registrados\n");
         }
         
-        mensaje.append("\n¿Desea finalizar la venta?");
-        
-        int confirmacion = JOptionPane.showConfirmDialog(frame, 
-            mensaje.toString(), 
-            "Confirmar Venta", 
-            JOptionPane.YES_NO_OPTION);
-        
-        
-        if (confirmacion == JOptionPane.YES_OPTION) {
-            try {
-                // === GUARDAR EN BASE DE DATOS CON HORA EXACTA ===
-                Connection conn = Conexion.getInstancia().getConnection();
-                conn.setAutoCommit(false); // Iniciar transacción
-                
+        // Proceder directamente a finalizar la venta sin confirmación
+        try {
+            // === GUARDAR EN BASE DE DATOS CON HORA EXACTA ===
+            Connection conn = Conexion.getInstancia().getConnection();
+            conn.setAutoCommit(false); // Iniciar transacción
+            
                 try {
                     // 1. Obtener ID de cliente (último cliente registrado)
                     int idCliente = -1;
@@ -3268,7 +3272,23 @@ public class Tod {
                     java.sql.PreparedStatement pstDetalle = conn.prepareStatement(sqlDetalle);
                     
                     for (int i = 0; i < modeloCarrito.getRowCount(); i++) {
-                        int idProd = Integer.parseInt(modeloCarrito.getValueAt(i, 0).toString());
+                        // ✅ VALIDAR ID DEL PRODUCTO ANTES DE INTENTAR PARSEARLO
+                        String idProductoStr = modeloCarrito.getValueAt(i, 0).toString();
+                        int idProd;
+                        
+                        try {
+                            idProd = Integer.parseInt(idProductoStr);
+                        } catch (NumberFormatException ex) {
+                            conn.rollback();
+                            String nombreProductoError = modeloCarrito.getValueAt(i, 1).toString();
+                            JOptionPane.showMessageDialog(frame, 
+                                "❌ ERROR: El producto '" + nombreProductoError + "' tiene un ID inválido: '" + idProductoStr + "'\n\n" +
+                                "Esto puede ocurrir si el producto fue agregado incorrectamente al carrito.\n" +
+                                "Por favor, vacía el carrito y agrégalo nuevamente usando el botón 'Buscar'.", 
+                                "Error de Producto Inválido", 
+                                JOptionPane.ERROR_MESSAGE);
+                            return; // Salir sin finalizar la venta
+                        }
                         
                         // Validar que el producto existe en la base de datos
                         String sqlCheckProd = "SELECT id FROM productos WHERE id = ?";
@@ -3314,159 +3334,134 @@ public class Tod {
                     conn.setAutoCommit(true);
                 }
 
-                // Usar FileDialog nativo de Windows para elegir dónde guardar
-                java.awt.FileDialog fileDialog = new java.awt.FileDialog(frame, "Guardar Ticket de Venta", java.awt.FileDialog.SAVE);
-                fileDialog.setFile("Ticket_Venta_" + System.currentTimeMillis() + ".pdf");
-                fileDialog.setVisible(true);
+                // ✅ PRIMERO: Generar contenido HTML del ticket
+                // Crear archivo HTML temporal para vista previa
+                String rutaHTMLTemp = System.getProperty("java.io.tmpdir") + "ticket_temp_" + System.currentTimeMillis() + ".html";
                 
-                String directorio = fileDialog.getDirectory();
-                String archivo = fileDialog.getFile();
+                // Crear contenido HTML
+                StringBuilder html = new StringBuilder();
+                html.append("<!DOCTYPE html>\n");
+                html.append("<html>\n<head>\n");
+                html.append("<meta charset='UTF-8'>\n");
+                html.append("<title>Ticket de Venta</title>\n");
+                html.append("<style>\n");
+                html.append("body { font-family: Arial, sans-serif; margin: 40px; }\n");
+                html.append(".store-header { text-align: center; margin-bottom: 30px; }\n");
+                html.append(".store-logo { max-width: 200px; max-height: 150px; margin: 0 auto 15px; display: block; }\n");
+                html.append(".store-name { font-size: 24px; font-weight: bold; color: #333; margin-bottom: 20px; }\n");
+                html.append("h1 { text-align: center; color: #333; }\n");
+                html.append("h2 { color: #555; border-bottom: 2px solid #333; padding-bottom: 5px; }\n");
+                html.append(".producto { margin: 10px 0; padding-left: 20px; }\n");
+                html.append(".total { text-align: right; font-size: 20px; font-weight: bold; margin: 20px 0; }\n");
+                html.append(".cliente { margin: 10px 0; padding-left: 20px; }\n");
+                html.append("@media print { button { display: none; } }\n");
+                html.append("</style>\n");
+                html.append("<script>\n");
+                html.append("window.onload = function() {\n");
+                html.append("  setTimeout(function() { window.print(); }, 500);\n");
+                html.append("};\n");
+                html.append("</script>\n");
+                html.append("</head>\n<body>\n");
                 
-                if (directorio != null && archivo != null) {
-                    String rutaPDF = directorio + archivo;
-                    
-                    // Asegurar que tenga extensión .pdf
-                    if (!rutaPDF.toLowerCase().endsWith(".pdf")) {
-                        rutaPDF += ".pdf";
+                // === ENCABEZADO DE LA TIENDA (Imagen y Nombre) ===
+                html.append("<div class='store-header'>\n");
+                
+                // Agregar imagen de la tienda si existe
+                if (rutaImagenTiendaGuardada != null && !rutaImagenTiendaGuardada.isEmpty()) {
+                    try {
+                        // Convertir la ruta de la imagen a formato file:/// para que funcione en el navegador
+                        String rutaImagenURL = new java.io.File(rutaImagenTiendaGuardada).toURI().toString();
+                        html.append("<img src='" + rutaImagenURL + "' class='store-logo' alt='Logo de la tienda'>\n");
+                    } catch (Exception ex) {
+                        System.err.println("Error al agregar imagen al ticket: " + ex.getMessage());
                     }
-                    
-                    // Crear archivo HTML temporal para imprimir
-                    String rutaHTMLTemp = System.getProperty("java.io.tmpdir") + "ticket_temp_" + System.currentTimeMillis() + ".html";
-                    
-                    // Crear contenido HTML
-                    StringBuilder html = new StringBuilder();
-                    html.append("<!DOCTYPE html>\n");
-                    html.append("<html>\n<head>\n");
-                    html.append("<meta charset='UTF-8'>\n");
-                    html.append("<title>Ticket de Venta</title>\n");
-                    html.append("<style>\n");
-                    html.append("body { font-family: Arial, sans-serif; margin: 40px; }\n");
-                    html.append(".store-header { text-align: center; margin-bottom: 30px; }\n");
-                    html.append(".store-logo { max-width: 200px; max-height: 150px; margin: 0 auto 15px; display: block; }\n");
-                    html.append(".store-name { font-size: 24px; font-weight: bold; color: #333; margin-bottom: 20px; }\n");
-                    html.append("h1 { text-align: center; color: #333; }\n");
-                    html.append("h2 { color: #555; border-bottom: 2px solid #333; padding-bottom: 5px; }\n");
-                    html.append(".producto { margin: 10px 0; padding-left: 20px; }\n");
-                    html.append(".total { text-align: right; font-size: 20px; font-weight: bold; margin: 20px 0; }\n");
-                    html.append(".cliente { margin: 10px 0; padding-left: 20px; }\n");
-                    html.append("@media print { button { display: none; } }\n");
-                    html.append("</style>\n");
-                    html.append("<script>\n");
-                    html.append("window.onload = function() {\n");
-                    html.append("  setTimeout(function() { window.print(); }, 500);\n");
-                    html.append("};\n");
-                    html.append("</script>\n");
-                    html.append("</head>\n<body>\n");
-                    
-                    // === ENCABEZADO DE LA TIENDA (Imagen y Nombre) ===
-                    html.append("<div class='store-header'>\n");
-                    
-                    // Agregar imagen de la tienda si existe
-                    if (rutaImagenTiendaGuardada != null && !rutaImagenTiendaGuardada.isEmpty()) {
-                        try {
-                            // Convertir la ruta de la imagen a formato file:/// para que funcione en el navegador
-                            String rutaImagenURL = new java.io.File(rutaImagenTiendaGuardada).toURI().toString();
-                            html.append("<img src='" + rutaImagenURL + "' class='store-logo' alt='Logo de la tienda'>\n");
-                        } catch (Exception ex) {
-                            System.err.println("Error al agregar imagen al ticket: " + ex.getMessage());
-                        }
-                    }
-                    
-                    // Agregar nombre de la tienda si existe
-                    if (nombreTiendaGuardado != null && !nombreTiendaGuardado.isEmpty()) {
-                        html.append("<div class='store-name'>" + nombreTiendaGuardado + "</div>\n");
-                    }
-                    
-                    html.append("</div>\n");
-                    
-                    // Título
-                    html.append("<h1>TICKET DE VENTA</h1>\n");
-                    html.append("<hr>\n");
-                    
-                    // Datos de TODOS los clientes
-                    html.append("<h2>DATOS DE CLIENTES:</h2>\n");
-                    if (modeloClientes != null && modeloClientes.getRowCount() > 0) {
-                        for (int i = 0; i < modeloClientes.getRowCount(); i++) {
-                            String id = modeloClientes.getValueAt(i, 0).toString();
-                            String nombre = modeloClientes.getValueAt(i, 1).toString();
-                            String apellido = modeloClientes.getValueAt(i, 2).toString();
-                            String telefono = modeloClientes.getValueAt(i, 3).toString();
-                            String email = modeloClientes.getValueAt(i, 4).toString();
-                            String direccion = modeloClientes.getValueAt(i, 5).toString();
-                            String ciudad = modeloClientes.getValueAt(i, 6).toString();
-                            
-                            html.append("<div style='margin: 15px 0; padding: 10px; background: #f5f5f5; border-left: 3px solid #333;'>\n");
-                            html.append("<div class='cliente'><strong>Cliente #" + id + "</strong></div>\n");
-                            html.append("<div class='cliente'><strong>Nombre completo:</strong> " + nombre + " " + apellido + "</div>\n");
-                            html.append("<div class='cliente'><strong>Teléfono:</strong> " + telefono + "</div>\n");
-                            html.append("<div class='cliente'><strong>Email:</strong> " + email + "</div>\n");
-                            html.append("<div class='cliente'><strong>Dirección:</strong> " + direccion + "</div>\n");
-                            html.append("<div class='cliente'><strong>Ciudad:</strong> " + ciudad + "</div>\n");
-                            html.append("</div>\n");
-                        }
-                    } else {
-                        html.append("<div class='cliente'>No hay clientes registrados</div>\n");
-                    }
-                    
-                    html.append("<hr>\n");
-                    
-                    // Productos DESPUÉS
-                    html.append("<h2>PRODUCTOS:</h2>\n");
-                    for (int i = 0; i < modeloCarrito.getRowCount(); i++) {
-                        String producto = modeloCarrito.getValueAt(i, 1).toString();
-                        String cantidad = modeloCarrito.getValueAt(i, 3).toString();
-                        String subtotal = modeloCarrito.getValueAt(i, 4).toString();
-                        html.append("<div class='producto'>• " + producto + " x" + cantidad + " = $" + subtotal + "</div>\n");
-                    }
-                    
-                    // Total
-                    html.append("<div class='total'>TOTAL: $" + String.format("%.2f", totalVenta) + "</div>\n");
-                    html.append("<hr>\n");
-                    
-                    // === INFORMACIÓN DE PAGO ===
-                    html.append("<h2>INFORMACIÓN DE PAGO:</h2>\n");
-                    html.append("<div style='margin: 15px 0; padding: 15px; background: #f0f9ff; border-left: 4px solid #3b82f6;'>\n");
-                    html.append("<div style='margin: 8px 0; font-size: 16px;'><strong>Dinero a pagar:</strong> <span style='color: #3b82f6; font-weight: bold;'>$" + String.format("%.2f", dineroAPagar) + "</span></div>\n");
-                    html.append("<div style='margin: 8px 0; font-size: 16px;'><strong>Dinero dado:</strong> <span style='color: #333; font-weight: bold;'>$" + String.format("%.2f", dineroDado) + "</span></div>\n");
-                    
-                    // Color del cambio según si es positivo o negativo
-                    String colorCambio = cambio >= 0 ? "#22c55e" : "#ef4444"; // Verde o Rojo
-                    html.append("<div style='margin: 8px 0; font-size: 18px;'><strong>Cambio:</strong> <span style='color: " + colorCambio + "; font-weight: bold;'>$" + String.format("%.2f", Math.abs(cambio)) + "</span></div>\n");
-                    html.append("</div>\n");
-                    html.append("<hr>\n");
-                    
-                    html.append("</body>\n</html>");
-                    
-                    // Guardar archivo HTML temporal
-                    java.io.FileWriter writer = new java.io.FileWriter(rutaHTMLTemp);
-                    writer.write(html.toString());
-                    writer.close();
-                    
-                    // Incrementar contadores de sesión
-                    ventasHoy++;
-                    gananciasHoy += totalVenta;
-                    
-                    // 💾 GUARDAR HORA DE LA VENTA para Corte de Caja
-                    java.time.LocalTime horaActual = java.time.LocalTime.now();
-                    java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss");
-                    horaUltimaVenta = horaActual.format(formatter);
-                    System.out.println("✅ Hora de venta guardada para Corte de Caja: " + horaUltimaVenta);
-                    
-                    // Limpiar carrito
-                    vaciarCarrito();
-                    
-                    // Mostrar mensaje de éxito
-                    JOptionPane.showMessageDialog(frame, 
-                        "Venta finalizada exitosamente\nTotal: $" + String.format("%.2f", totalVenta) + "\n\nSe abrirá el navegador.\nEn la ventana de impresión:\n1. Selecciona 'Guardar como PDF'\n2. Guarda en: " + rutaPDF, 
-                        "Éxito", 
-                        JOptionPane.INFORMATION_MESSAGE);
-                    
-                    // Abrir el HTML en el navegador (se imprimirá automáticamente)
-                    java.awt.Desktop.getDesktop().browse(new java.io.File(rutaHTMLTemp).toURI());
-                    
-                    System.out.println("✅ Venta finalizada por $" + String.format("%.2f", totalVenta));
-                    System.out.println("📄 PDF se guardará en: " + rutaPDF);
                 }
+                
+                // Agregar nombre de la tienda si existe
+                if (nombreTiendaGuardado != null && !nombreTiendaGuardado.isEmpty()) {
+                    html.append("<div class='store-name'>" + nombreTiendaGuardado + "</div>\n");
+                }
+                
+                html.append("</div>\n");
+                
+                // Título
+                html.append("<h1>TICKET DE VENTA</h1>\n");
+                html.append("<hr>\n");
+                
+                // Datos de TODOS los clientes
+                html.append("<h2>DATOS DE CLIENTES:</h2>\n");
+                if (modeloClientes != null && modeloClientes.getRowCount() > 0) {
+                    for (int i = 0; i < modeloClientes.getRowCount(); i++) {
+                        String id = modeloClientes.getValueAt(i, 0).toString();
+                        String nombre = modeloClientes.getValueAt(i, 1).toString();
+                        String apellido = modeloClientes.getValueAt(i, 2).toString();
+                        String telefono = modeloClientes.getValueAt(i, 3).toString();
+                        String email = modeloClientes.getValueAt(i, 4).toString();
+                        String direccion = modeloClientes.getValueAt(i, 5).toString();
+                        String ciudad = modeloClientes.getValueAt(i, 6).toString();
+                        
+                        html.append("<div style='margin: 15px 0; padding: 10px; background: #f5f5f5; border-left: 3px solid #333;'>\n");
+                        html.append("<div class='cliente'><strong>Cliente #" + id + "</strong></div>\n");
+                        html.append("<div class='cliente'><strong>Nombre completo:</strong> " + nombre + " " + apellido + "</div>\n");
+                        html.append("<div class='cliente'><strong>Teléfono:</strong> " + telefono + "</div>\n");
+                        html.append("<div class='cliente'><strong>Email:</strong> " + email + "</div>\n");
+                        html.append("<div class='cliente'><strong>Dirección:</strong> " + direccion + "</div>\n");
+                        html.append("<div class='cliente'><strong>Ciudad:</strong> " + ciudad + "</div>\n");
+                        html.append("</div>\n");
+                    }
+                } else {
+                    html.append("<div class='cliente'>No hay clientes registrados</div>\n");
+                }
+                
+                html.append("<hr>\n");
+                
+                // Productos DESPUÉS
+                html.append("<h2>PRODUCTOS:</h2>\n");
+                for (int i = 0; i < modeloCarrito.getRowCount(); i++) {
+                    String producto = modeloCarrito.getValueAt(i, 1).toString();
+                    String cantidad = modeloCarrito.getValueAt(i, 3).toString();
+                    String subtotal = modeloCarrito.getValueAt(i, 4).toString();
+                    html.append("<div class='producto'>• " + producto + " x" + cantidad + " = $" + subtotal + "</div>\n");
+                }
+                
+                // Total
+                html.append("<div class='total'>TOTAL: $" + String.format("%.2f", totalVenta) + "</div>\n");
+                html.append("<hr>\n");
+                
+                // === INFORMACIÓN DE PAGO ===
+                html.append("<h2>INFORMACIÓN DE PAGO:</h2>\n");
+                html.append("<div style='margin: 15px 0; padding: 15px; background: #f0f9ff; border-left: 4px solid #3b82f6;'>\n");
+                html.append("<div style='margin: 8px 0; font-size: 16px;'><strong>Dinero a pagar:</strong> <span style='color: #3b82f6; font-weight: bold;'>$" + String.format("%.2f", dineroAPagar) + "</span></div>\n");
+                html.append("<div style='margin: 8px 0; font-size: 16px;'><strong>Dinero dado:</strong> <span style='color: #333; font-weight: bold;'>$" + String.format("%.2f", dineroDado) + "</span></div>\n");
+                
+                // Color del cambio según si es positivo o negativo
+                String colorCambio = cambio >= 0 ? "#22c55e" : "#ef4444"; // Verde o Rojo
+                html.append("<div style='margin: 8px 0; font-size: 18px;'><strong>Cambio:</strong> <span style='color: " + colorCambio + "; font-weight: bold;'>$" + String.format("%.2f", Math.abs(cambio)) + "</span></div>\n");
+                html.append("</div>\n");
+                html.append("<hr>\n");
+                
+                html.append("</body>\n</html>");
+                
+                // Guardar archivo HTML temporal
+                java.io.FileWriter writer = new java.io.FileWriter(rutaHTMLTemp);
+                writer.write(html.toString());
+                writer.close();
+                
+                // Incrementar contadores de sesión
+                ventasHoy++;
+                gananciasHoy += totalVenta;
+                
+                // 💾 GUARDAR HORA DE LA VENTA para Corte de Caja
+                java.time.LocalTime horaActual = java.time.LocalTime.now();
+                java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss");
+                horaUltimaVenta = horaActual.format(formatter);
+                System.out.println("✅ Hora de venta guardada para Corte de Caja: " + horaUltimaVenta);
+                
+                // Limpiar carrito
+                vaciarCarrito();
+                
+                // ✅ MOSTRAR VISTA PREVIA PRIMERO (botón Imprimir abrirá el diálogo de guardar)
+                mostrarVistaPreviaTicket(html.toString(), rutaHTMLTemp, totalVenta);
                 
             } catch (Exception e) {
                 JOptionPane.showMessageDialog(frame, 
@@ -3475,8 +3470,122 @@ public class Tod {
                     JOptionPane.ERROR_MESSAGE);
                 e.printStackTrace();
             }
-        }
     }
+    
+    /**
+ * Muestra una vista previa del ticket en un diálogo con botón de impresión
+ */
+private void mostrarVistaPreviaTicket(String htmlContent, String rutaHTMLTemp, double total) {
+    // Crear JDialog modal
+    JDialog dialog = new JDialog(frame, "Ticket de Venta", true);
+    dialog.setSize(600, 700);
+    dialog.setLocationRelativeTo(frame);
+    dialog.setLayout(new BorderLayout());
+    dialog.getContentPane().setBackground(Color.WHITE);
+    
+    // Panel superior con información
+    JPanel headerPanel = new JPanel();
+    headerPanel.setBackground(new Color(59, 130, 246));
+    headerPanel.setPreferredSize(new Dimension(600, 80));
+    headerPanel.setLayout(null);
+    dialog.add(headerPanel, BorderLayout.NORTH);
+    
+    JLabel lblTitulo = new JLabel("✅ Venta Finalizada");
+    lblTitulo.setFont(new Font("Segoe UI", Font.BOLD, 24));
+    lblTitulo.setForeground(Color.WHITE);
+    lblTitulo.setBounds(20, 15, 300, 30);
+    headerPanel.add(lblTitulo);
+    
+    JLabel lblTotal = new JLabel("Total: $" + String.format("%.2f", total));
+    lblTotal.setFont(new Font("Segoe UI", Font.BOLD, 20));
+    lblTotal.setForeground(Color.WHITE);
+    lblTotal.setBounds(20, 45, 300, 25);
+    headerPanel.add(lblTotal);
+    
+    // Panel central con vista previa del ticket (usando JEditorPane para HTML)
+    JEditorPane editorPane = new JEditorPane();
+    editorPane.setContentType("text/html");
+    editorPane.setText(htmlContent);
+    editorPane.setEditable(false);
+    editorPane.setCaretPosition(0);
+    
+    JScrollPane scrollPane = new JScrollPane(editorPane);
+    scrollPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+    dialog.add(scrollPane, BorderLayout.CENTER);
+    
+    // Panel inferior con botones
+    JPanel buttonPanel = new JPanel();
+    buttonPanel.setBackground(Color.WHITE);
+    buttonPanel.setPreferredSize(new Dimension(600, 80));
+    buttonPanel.setLayout(null);
+    buttonPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.LIGHT_GRAY));
+    dialog.add(buttonPanel, BorderLayout.SOUTH);
+    
+    // Botón Imprimir → ABRE EL FILEDIAL OG PARA GUARDAR
+    JButton btnImprimir = new JButton("🖨️ Imprimir");
+    btnImprimir.setBounds(50, 20, 200, 45);
+    btnImprimir.setFont(new Font("Segoe UI", Font.BOLD, 16));
+    btnImprimir.setBackground(new Color(34, 197, 94));
+    btnImprimir.setForeground(Color.WHITE);
+    btnImprimir.setFocusPainted(false);
+    btnImprimir.setBorder(new RoundBorder(10, new Color(34, 197, 94)));
+    btnImprimir.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    btnImprimir.addActionListener(e -> {
+        try {
+            // ✅ AHORA: Abrir FileDialog para que el usuario elija dónde guardar
+            java.awt.FileDialog fileDialog = new java.awt.FileDialog(frame, "Guardar Ticket de Venta", java.awt.FileDialog.SAVE);
+            fileDialog.setFile("Ticket_Venta_" + System.currentTimeMillis() + ".pdf");
+            fileDialog.setVisible(true);
+            
+            String directorio = fileDialog.getDirectory();
+            String archivo = fileDialog.getFile();
+            
+            if (directorio != null && archivo != null) {
+                String rutaPDF = directorio + archivo;
+                
+                // Asegurar que tenga extensión .pdf
+                if (!rutaPDF.toLowerCase().endsWith(".pdf")) {
+                    rutaPDF += ".pdf";
+                }
+                
+                // Abrir el HTML en el navegador para imprimir/guardar como PDF
+                java.awt.Desktop.getDesktop().browse(new java.io.File(rutaHTMLTemp).toURI());
+                
+                // Mostrar mensaje con instrucciones
+                JOptionPane.showMessageDialog(dialog,
+                    "Se abrirá el navegador para imprimir.\n\nEn la ventana de impresión:\n1. Selecciona 'Guardar como PDF'\n2. Guarda en: " + rutaPDF,
+                    "Imprimir Ticket",
+                    JOptionPane.INFORMATION_MESSAGE);
+                    
+                System.out.println("📄 PDF se guardará en: " + rutaPDF);
+            } else {
+                System.out.println("⚠️ Usuario canceló el guardado del ticket");
+            }
+                
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(dialog,
+                "Error al abrir el navegador: " + ex.getMessage(),
+                "Error",
+                JOptionPane.ERROR_MESSAGE);
+        }
+    });
+    buttonPanel.add(btnImprimir);
+    
+    // Botón Cerrar
+    JButton btnCerrar = new JButton("Cerrar");
+    btnCerrar.setBounds(350, 20, 200, 45);
+    btnCerrar.setFont(new Font("Segoe UI", Font.BOLD, 16));
+    btnCerrar.setBackground(new Color(148, 163, 184));
+    btnCerrar.setForeground(Color.WHITE);
+    btnCerrar.setFocusPainted(false);
+    btnCerrar.setBorder(new RoundBorder(10, new Color(148, 163, 184)));
+    btnCerrar.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    btnCerrar.addActionListener(e -> dialog.dispose());
+    buttonPanel.add(btnCerrar);
+    
+    // Mostrar diálogo
+    dialog.setVisible(true);
+}
     
     private void cargarDatosEjemploCategorias() {
         modeloCategorias.addRow(new Object[]{"1", "Electrónica", "Dispositivos y componentes electrónicos", "Laptops, Tablets"});
@@ -3796,6 +3905,7 @@ public class Tod {
         modeloCorte.addColumn("Hora");
         modeloCorte.addColumn("Empleado");
         modeloCorte.addColumn("Categoría");
+        modeloCorte.addColumn("Nombre de producto");
         modeloCorte.addColumn("Stock restante del día de hoy");
         
         JTable tablaCorte = new JTable(modeloCorte);
@@ -3810,8 +3920,9 @@ public class Tod {
         tablaCorte.getColumnModel().getColumn(1).setPreferredWidth(180);
         tablaCorte.getColumnModel().getColumn(2).setPreferredWidth(80);
         tablaCorte.getColumnModel().getColumn(3).setPreferredWidth(150);
-        tablaCorte.getColumnModel().getColumn(4).setPreferredWidth(150);
-        tablaCorte.getColumnModel().getColumn(5).setPreferredWidth(140);
+        tablaCorte.getColumnModel().getColumn(4).setPreferredWidth(120);
+        tablaCorte.getColumnModel().getColumn(5).setPreferredWidth(180);
+        tablaCorte.getColumnModel().getColumn(6).setPreferredWidth(140);
         
         JScrollPane scrollCorte = new JScrollPane(tablaCorte);
         scrollCorte.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
@@ -3919,12 +4030,28 @@ public class Tod {
                         System.out.println("⚠️ Cliente ID " + idCliente + " - No hay hora de venta registrada");
                     }
                     
+                    
+                    // Obtener nombres de productos de la tabla de productos
+                    String nombresProductos = "";
+                    if (modeloProductos != null && modeloProductos.getRowCount() > 0) {
+                        StringBuilder productosBuilder = new StringBuilder();
+                        for (int j = 0; j < modeloProductos.getRowCount(); j++) {
+                            String nombreProducto = modeloProductos.getValueAt(j, 1).toString(); // Columna 1 es el nombre
+                            if (j > 0) {
+                                productosBuilder.append(", ");
+                            }
+                            productosBuilder.append(nombreProducto);
+                        }
+                        nombresProductos = productosBuilder.toString();
+                    }
+                    
                     model.addRow(new Object[]{
                         idCliente,                        // ID del cliente (Clientes del día de hoy)
                         nombreCompleto,                   // Nombre del cliente
                         horaVenta,                        // Hora de la VENTA
                         nombreEmpleado,                   // Empleado que procesó la venta
                         categoriasStr,                    // Categorías de productos
+                        nombresProductos,                 // Nombres de productos
                         stockTotalRestante                // Stock restante del día de hoy
                     });
                 }
@@ -3933,12 +4060,28 @@ public class Tod {
             } else {
                 // Si no hay clientes, mostrar mensaje con el empleado
                 String empleadoMostrar = ultimoEmpleadoAgregado.isEmpty() ? "-" : ultimoEmpleadoAgregado;
+                
+                // Obtener nombres de productos para mostrar aunque no haya clientes
+                String nombresProductos = "";
+                if (modeloProductos != null && modeloProductos.getRowCount() > 0) {
+                    StringBuilder productosBuilder = new StringBuilder();
+                    for (int j = 0; j < modeloProductos.getRowCount(); j++) {
+                        String nombreProducto = modeloProductos.getValueAt(j, 1).toString();
+                        if (j > 0) {
+                            productosBuilder.append(", ");
+                        }
+                        productosBuilder.append(nombreProducto);
+                    }
+                    nombresProductos = productosBuilder.toString();
+                }
+                
                 model.addRow(new Object[]{
                     "Sin clientes",
                     "No hay clientes registrados hoy",
                     "-",
                     empleadoMostrar,  // Mostrar empleado aunque no haya clientes
                     categoriasStr,
+                    nombresProductos,
                     stockTotalRestante
                 });
             }
@@ -3954,6 +4097,7 @@ public class Tod {
                 "-",
                 "-",
                 "Error: " + e.getMessage(),
+                "-",
                 0
             });
         }
@@ -4401,7 +4545,7 @@ public class Tod {
     private void cargarEmpleados() {
         try {
             Connection conn = Conexion.getInstancia().getConnection();
-            String sql = "SELECT id, nombre, apellido, email, cargo, telefono, estado FROM empleados ORDER BY id";
+            String sql = "SELECT id, nombre, apellido, email, cargo, telefono FROM empleados ORDER BY id";
             java.sql.PreparedStatement pst = conn.prepareStatement(sql);
             java.sql.ResultSet rs = pst.executeQuery();
             
@@ -4415,7 +4559,6 @@ public class Tod {
                 fila.add(rs.getString("email"));
                 fila.add(rs.getString("cargo"));
                 fila.add(rs.getString("telefono"));
-                fila.add(rs.getString("estado"));
                 modeloUsuarios.addRow(fila);
             }
             
@@ -4576,10 +4719,12 @@ private void cargarProductos() {
             if (modeloProductosDisponibles != null) {
                 // Verificar si el producto ya existe en la tabla
                 boolean existe = false;
+                int filaExistente = -1;
                 for (int i = 0; i < modeloProductosDisponibles.getRowCount(); i++) {
                     Object nombreObj = modeloProductosDisponibles.getValueAt(i, 1);
                     if (nombreObj != null && nombreObj.toString().equals(nombre)) {
                         existe = true;
+                        filaExistente = i;
                         break;
                     }
                 }
@@ -4592,8 +4737,40 @@ private void cargarProductos() {
                     filaVenta.add(String.format("%.2f", precio));
                     modeloProductosDisponibles.addRow(filaVenta);
                     
+                    // ✅ SELECCIONAR AUTOMÁTICAMENTE EL PRODUCTO RECIÉN AGREGADO
+                    final int filaAgregada = modeloProductosDisponibles.getRowCount() - 1;
+                    if (tablaProductosDisponibles != null) {
+                        SwingUtilities.invokeLater(() -> {
+                            try {
+                                tablaProductosDisponibles.setRowSelectionInterval(filaAgregada, filaAgregada);
+                                tablaProductosDisponibles.scrollRectToVisible(
+                                    tablaProductosDisponibles.getCellRect(filaAgregada, 0, true)
+                                );
+                                System.out.println("✅ Producto '" + nombre + "' seleccionado automáticamente en Ventas (fila " + filaAgregada + ")");
+                            } catch (Exception ex) {
+                                System.err.println("⚠️ No se pudo seleccionar automáticamente: " + ex.getMessage());
+                            }
+                        });
+                    }
+                    
                     System.out.println("✅ Producto '" + nombre + "' sincronizado con Ventas");
                     System.out.println("   → ID en Ventas: " + idProducto + " | ID en Productos: " + idProducto);
+                } else {
+                    // Si ya existe, seleccionarlo también
+                    final int filaSeleccionar = filaExistente;
+                    if (tablaProductosDisponibles != null) {
+                        SwingUtilities.invokeLater(() -> {
+                            try {
+                                tablaProductosDisponibles.setRowSelectionInterval(filaSeleccionar, filaSeleccionar);
+                                tablaProductosDisponibles.scrollRectToVisible(
+                                    tablaProductosDisponibles.getCellRect(filaSeleccionar, 0, true)
+                                );
+                                System.out.println("✅ Producto '" + nombre + "' ya existe - seleccionado en Ventas (fila " + filaSeleccionar + ")");
+                            } catch (Exception ex) {
+                                System.err.println("⚠️ No se pudo seleccionar automáticamente: " + ex.getMessage());
+                            }
+                        });
+                    }
                 }
             }
         } catch (Exception e) {
